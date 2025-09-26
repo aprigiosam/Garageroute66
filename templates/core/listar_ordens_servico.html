@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Ordens de Serviço · Oficina Pro{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Ordens de Serviço</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-clipboard-check text-primary me-2"></i>Ordens de Serviço
+        </h1>
+        <p class="text-muted">Gerenciar ordens de serviço da oficina</p>
+    </div>
+    <div>
+        <a href="{% url 'core:abrir_ordem_servico' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Nova OS
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="bi bi-funnel me-2"></i>Filtros
+        </h6>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-2">
+                {{ form.status.label_tag }}
+                {{ form.status }}
+            </div>
+            <div class="col-md-2">
+                {{ form.prioridade.label_tag }}
+                {{ form.prioridade }}
+            </div>
+            <div class="col-md-2">
+                {{ form.cliente.label_tag }}
+                {{ form.cliente }}
+            </div>
+            <div class="col-md-2">
+                {{ form.data_inicio.label_tag }}
+                {{ form.data_inicio }}
+            </div>
+            <div class="col-md-2">
+                {{ form.data_fim.label_tag }}
+                {{ form.data_fim }}
+            </div>
+            <div class="col-md-2">
+                {{ form.busca.label_tag }}
+                {{ form.busca }}
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search me-2"></i>Filtrar
+                </button>
+                <a href="{% url 'core:listar_ordens_servico' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-2"></i>Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Ordens -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0">
+            Lista de Ordens ({{ ordens.paginator.count }} encontradas)
+        </h6>
+        <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary" onclick="toggleView('table')">
+                <i class="bi bi-table"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="toggleView('cards')">
+                <i class="bi bi-grid-3x3-gap"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <!-- Visualização em Tabela -->
+        <div id="table-view" class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>OS #</th>
+                        <th>Veículo</th>
+                        <th>Cliente</th>
+                        <th>Status</th>
+                        <th>Prioridade</th>
+                        <th>Abertura</th>
+                        <th>Total</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ordem in ordens %}
+                    <tr class="{% if ordem.prazo_vencido %}table-warning{% endif %}">
+                        <td>
+                            <strong>{{ ordem.numero_os }}</strong>
+                            {% if ordem.prazo_vencido %}
+                                <i class="bi bi-exclamation-triangle text-warning ms-1" title="Prazo vencido"></i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>
+                                <strong>{{ ordem.veiculo.placa }}</strong><br>
+                                <small class="text-muted">{{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                {{ ordem.veiculo.cliente.nome }}<br>
+                                <small class="text-muted">{{ ordem.veiculo.cliente.telefone }}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm status-select" 
+                                    data-ordem-id="{{ ordem.id }}" 
+                                    data-current-status="{{ ordem.status }}">
+                                {% for value, label in form.status.field.choices %}
+                                    {% if value %}
+                                        <option value="{{ value }}" {% if ordem.status == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if ordem.prioridade == 'URGENTE' %}bg-danger
+                                {% elif ordem.prioridade == 'ALTA' %}bg-warning
+                                {% elif ordem.prioridade == 'NORMAL' %}bg-primary
+                                {% else %}bg-secondary
+                                {% endif %}">
+                                {{ ordem.get_prioridade_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <div>
+                                {{ ordem.data_abertura|date:"d/m/Y" }}<br>
+                                <small class="text-muted">{{ ordem.data_abertura|date:"H:i" }}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <strong>R$ {{ ordem.total|floatformat:2 }}</strong>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'core:detalhes_ordem_servico' ordem.id %}" 
+                                   class="btn btn-outline-primary" title="Ver detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'core:editar_ordem_servico' ordem.id %}" 
+                                   class="btn btn-outline-warning" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-info" 
+                                        onclick="printOS({{ ordem.id }})" title="Imprimir">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                                Nenhuma ordem de serviço encontrada
+                            </div>
+                            <a href="{% url 'core:abrir_ordem_servico' %}" class="btn btn-primary mt-2">
+                                <i class="bi bi-plus-circle me-2"></i>Criar primeira OS
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Visualização em Cards -->
+        <div id="cards-view" class="p-3" style="display: none;">
+            <div class="row g-3">
+                {% for ordem in ordens %}
+                <div class="col-xl-4 col-lg-6">
+                    <div class="card border-start border-4 
+                        {% if ordem.prioridade == 'URGENTE' %}border-danger
+                        {% elif ordem.prioridade == 'ALTA' %}border-warning
+                        {% elif ordem.prioridade == 'NORMAL' %}border-primary
+                        {% else %}border-secondary
+                        {% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h6 class="card-title mb-1">OS #{{ ordem.numero_os }}</h6>
+                                    <p class="card-text text-muted mb-0">
+                                        {{ ordem.veiculo.placa }} - {{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}
+                                    </p>
+                                </div>
+                                <span class="badge 
+                                    {% if ordem.status == 'ABERTA' %}bg-primary
+                                    {% elif ordem.status == 'EM_ANDAMENTO' %}bg-warning
+                                    {% elif ordem.status == 'CONCLUIDA' %}bg-success
+                                    {% elif ordem.status == 'ENTREGUE' %}bg-info
+                                    {% else %}bg-secondary
+                                    {% endif %}">
+                                    {{ ordem.get_status_display }}
+                                </span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Cliente:</small>
+                                <strong>{{ ordem.veiculo.cliente.nome }}</strong>
+                            </div>
+                            
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Abertura:</small>
+                                    <span>{{ ordem.data_abertura|date:"d/m/Y H:i" }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Total:</small>
+                                    <strong class="text-success">R$ {{ ordem.total|floatformat:2 }}</strong>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'core:detalhes_ordem_servico' ordem.id %}" 
+                                   class="btn btn-outline-primary btn-sm flex-fill">
+                                    <i class="bi bi-eye me-1"></i>Detalhes
+                                </a>
+                                <a href="{% url 'core:editar_ordem_servico' ordem.id %}" 
+                                   class="btn btn-outline-warning btn-sm">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-info btn-sm" 
+                                        onclick="printOS({{ ordem.id }})">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+                        <h5>Nenhuma ordem de serviço encontrada</h5>
+                        <p class="text-muted">Crie uma nova ordem de serviço para começar.</p>
+                        <a href="{% url 'core:abrir_ordem_servico' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-2"></i>Nova OS
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    {% if ordens.has_other_pages %}
+    <div class="card-footer">
+        <nav aria-label="Paginação">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if ordens.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ ordens.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for num in ordens.paginator.page_range %}
+                    {% if ordens.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > ordens.number|add:'-3' and num < ordens.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if ordens.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ ordens.next_page_number }}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <div class="text-center mt-2">
+            <small class="text-muted">
+                Página {{ ordens.number }} de {{ ordens.paginator.num_pages }} 
+                ({{ ordens.paginator.count }} registros no total)
+            </small>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal para observações de status -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Alterar Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="statusForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="ordemId" name="ordem_id">
+                    <input type="hidden" id="novoStatus" name="status">
+                    
+                    <div class="mb-3">
+                        <label for="observacao" class="form-label">Observação (opcional):</label>
+                        <textarea class="form-control" id="observacao" name="observacao" rows="3" 
+                                  placeholder="Adicione uma observação sobre esta mudança de status..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmStatusUpdate()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Controle de visualização
+    function toggleView(view) {
+        const tableView = document.getElementById('table-view');
+        const cardsView = document.getElementById('cards-view');
+        
+        if (view === 'table') {
+            tableView.style.display = 'block';
+            cardsView.style.display = 'none';
+            localStorage.setItem('ordens_view', 'table');
+        } else {
+            tableView.style.display = 'none';
+            cardsView.style.display = 'block';
+            localStorage.setItem('ordens_view', 'cards');
+        }
+        
+        // Atualizar botões ativos
+        document.querySelectorAll('.btn-group .btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.closest('.btn').classList.add('active');
+    }
+    
+    // Restaurar visualização salva
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedView = localStorage.getItem('ordens_view') || 'table';
+        toggleView(savedView);
+    });
+
+    // Mudança de status
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusSelects = document.querySelectorAll('.status-select');
+        
+        statusSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                const ordemId = this.dataset.ordemId;
+                const currentStatus = this.dataset.currentStatus;
+                const newStatus = this.value;
+                
+                if (newStatus !== currentStatus) {
+                    // Mostrar modal para confirmação
+                    document.getElementById('ordemId').value = ordemId;
+                    document.getElementById('novoStatus').value = newStatus;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+                    modal.show();
+                } else {
+                    this.value = currentStatus; // Reverter se não mudou
+                }
+            });
+        });
+    });
+    
+    function confirmStatusUpdate() {
+        const ordemId = document.getElementById('ordemId').value;
+        const novoStatus = document.getElementById('novoStatus').value;
+        const observacao = document.getElementById('observacao').value;
+        
+        updateStatus(ordemId, novoStatus, observacao);
+        
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
+        modal.hide();
+    }
+    
+    // Função para imprimir OS
+    function printOS(ordemId) {
+        // Implementar impressão/PDF da OS
+        window.open(`/ordens/${ordemId}/print/`, '_blank');
+    }
+    
+    // Auto-refresh a cada 5 minutos
+    setInterval(function() {
+        if (!document.hidden) {
+            location.reload();
+        }
+    }, 300000);
+</script>
+{% endblock %}

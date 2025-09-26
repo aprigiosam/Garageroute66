@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//usr/bin/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

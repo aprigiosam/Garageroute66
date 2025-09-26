@@ -1,0 +1,150 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Nova Ordem de Servico • Oficina Pro{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'core:listar_ordens_servico' %}">Ordens de servico</a>
+</li>
+<li class="breadcrumb-item active" aria-current="page">Nova ordem</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Abrir ordem de servico</h1>
+        <p class="text-muted mb-0">Cadastre uma nova ordem, defina os itens e acompanhe o status.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{% url 'core:listar_ordens_servico' %}">
+        <i class="bi bi-card-checklist me-1"></i>
+        Listar ordens
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header bg-white border-0">
+                    <h2 class="h5 mb-0">Dados principais</h2>
+                </div>
+                <div class="card-body">
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header bg-white border-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h5 mb-0">Itens da ordem</h2>
+                        <button class="btn btn-sm btn-outline-primary" type="button" id="add-item">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Adicionar item
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {{ formset.management_form }}
+                    <div id="itens-container" class="row g-3">
+                        {% for item_form in formset %}
+                            <div class="col-12 ordem-item" data-index="{{ forloop.counter0 }}">
+                                <div class="row g-3 align-items-end border rounded p-3">
+                                    {% for field in item_form.visible_fields %}
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% for error in field.errors %}
+                                                <div class="text-danger small">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endfor %}
+                                    {% if item_form.can_delete %}
+                                        <div class="col-md-12">
+                                            <div class="form-check">
+                                                {{ item_form.DELETE }}
+                                                <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">Remover item</label>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% if form.non_field_errors or formset.non_form_errors %}
+        <div class="alert alert-danger mt-3" role="alert">
+            {% for error in form.non_field_errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+            {% for error in formset.non_form_errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+        </div>
+    {% endif %}
+    <div class="d-flex justify-content-end mt-4 gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'core:listar_ordens_servico' %}">Cancelar</a>
+        <button class="btn btn-primary" type="submit">
+            <i class="bi bi-save me-1"></i>
+            Salvar ordem
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    (function() {
+        const addButton = document.getElementById('add-item');
+        if (!addButton) {
+            return;
+        }
+        const container = document.getElementById('itens-container');
+        const totalForms = document.querySelector('#id_form-TOTAL_FORMS');
+
+        addButton.addEventListener('click', function() {
+            const currentCount = parseInt(totalForms.value, 10);
+            const newIndex = currentCount;
+            const template = container.querySelector('.ordem-item');
+            if (!template) {
+                return;
+            }
+            const clone = template.cloneNode(true);
+            clone.setAttribute('data-index', newIndex);
+            clone.querySelectorAll('input, select, textarea').forEach(function(element) {
+                if (element.name) {
+                    element.name = element.name.replace(/form-\d+-/, orm--);
+                }
+                if (element.id) {
+                    element.id = element.id.replace(/form-\d+-/, orm--);
+                }
+                if (element.type === 'checkbox') {
+                    element.checked = false;
+                } else {
+                    element.value = '';
+                }
+            });
+            const deleteCheckbox = clone.querySelector('input[type="checkbox"][name$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = false;
+            }
+            container.appendChild(clone);
+            totalForms.value = newIndex + 1;
+        });
+    })();
+</script>
+{% endblock %}

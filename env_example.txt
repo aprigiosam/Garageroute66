@@ -1,0 +1,51 @@
+# Django Settings
+DEBUG=True
+SECRET_KEY=your-super-secret-key-here-change-in-production
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Database (PostgreSQL for production)
+DB_NAME=oficina_db
+DB_USER=oficina_user
+DB_PASSWORD=your-db-password
+DB_HOST=localhost
+DB_PORT=5432
+
+# Email Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+DEFAULT_FROM_EMAIL=noreply@oficina.com
+
+# Redis (for caching and Celery)
+REDIS_URL=redis://127.0.0.1:6379/1
+
+# Company Information
+COMPANY_NAME=Oficina Pro
+COMPANY_ADDRESS=Rua da Oficina, 123 - Centro
+COMPANY_PHONE=(11) 99999-9999
+COMPANY_EMAIL=contato@oficina.com
+COMPANY_CNPJ=00.000.000/0001-00
+
+# Application Settings
+OS_PREFIX=OS
+AUTO_GENERATE_OS_NUMBER=True
+SEND_EMAIL_NOTIFICATIONS=False
+SEND_SMS_NOTIFICATIONS=False
+ENABLE_REPORTS=True
+REPORTS_CACHE_TIMEOUT=3600
+PAGINATE_BY=20
+
+# Backup Settings
+BACKUP_ENABLED=True
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+
+# Security (Production only)
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
+
+# Sentry (Error tracking - Production)
+SENTRY_DSN=your-sentry-dsn-here

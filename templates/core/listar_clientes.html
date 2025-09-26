@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Clientes · Oficina Pro{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Clientes</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-people text-primary me-2"></i>Clientes
+        </h1>
+        <p class="text-muted">Gerenciar clientes da oficina</p>
+    </div>
+    <div>
+        <a href="{% url 'core:cadastrar_cliente' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus me-2"></i>Novo Cliente
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filtros de Busca -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="bi bi-search me-2"></i>Buscar Clientes
+        </h6>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" name="busca" class="form-control" 
+                       placeholder="Digite nome, CPF, telefone ou e-mail..." 
+                       value="{{ busca }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search me-2"></i>Buscar
+                </button>
+                <a href="{% url 'core:listar_clientes' %}" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">{{ clientes.paginator.count }} clientes encontrados</small>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Clientes -->
+<div class="row">
+    {% for cliente in clientes %}
+    <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+        <div class="card h-100 border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-1">
+                            <i class="bi bi-person-circle text-primary me-2"></i>
+                            {{ cliente.nome }}
+                        </h5>
+                        <p class="card-text text-muted mb-2">CPF: {{ cliente.cpf }}</p>
+                    </div>
+                    {% if not cliente.ativo %}
+                        <span class="badge bg-secondary">Inativo</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Informações de Contato -->
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-telephone text-muted me-2"></i>
+                        <span class="small">{{ cliente.telefone }}</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-envelope text-muted me-2"></i>
+                        <span class="small">{{ cliente.email }}</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-geo-alt text-muted me-2"></i>
+                        <span class="small">{{ cliente.endereco|truncatechars:30 }}</span>
+                    </div>
+                </div>
+
+                <!-- Estatísticas -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="bg-light rounded p-2 text-center">
+                            <small class="text-muted d-block">Veículos</small>
+                            <strong class="text-primary">{{ cliente.veiculos.count }}</strong>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="bg-light rounded p-2 text-center">
+                            <small class="text-muted d-block">Total Gasto</small>
+                            <strong class="text-success">R$ {{ cliente.valor_total_gasto|floatformat:2 }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Última atividade -->
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-clock me-1"></i>
+                        Cadastrado em {{ cliente.criado_em|date:"d/m/Y" }}
+                    </small>
+                </div>
+
+                <!-- Ações -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'core:editar_cliente' cliente.id %}" 
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" 
+                                data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="{% url 'core:listar_veiculos' %}?cliente={{ cliente.id }}">
+                                    <i class="bi bi-car-front me-2"></i>Ver Veículos
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="{% url 'core:listar_ordens_servico' %}?cliente={{ cliente.id }}">
+                                    <i class="bi bi-clipboard-check me-2"></i>Ver OS
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-info" href="#" 
+                                   onclick="window.print()">
+                                    <i class="bi bi-printer me-2"></i>Imprimir
+                                </a>
+                            </li>
+                            {% if cliente.ativo %}
+                            <li>
+                                <a class="dropdown-item text-warning" href="#" 
+                                   onclick="desativarCliente({{ cliente.id }})">
+                                    <i class="bi bi-archive me-2"></i>Desativar
+                                </a>
+                            </li>
+                            {% else %}
+                            <li>
+                                <a class="dropdown-item text-success" href="#" 
+                                   onclick="ativarCliente({{ cliente.id }})">
+                                    <i class="bi bi-check-circle me-2"></i>Ativar
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-people fs-1 text-muted d-block mb-3"></i>
+                <h5>Nenhum cliente encontrado</h5>
+                <p class="text-muted">
+                    {% if busca %}
+                        Não encontramos clientes com os termos: "{{ busca }}"
+                    {% else %}
+                        Cadastre o primeiro cliente para começar.
+                    {% endif %}
+                </p>
+                <a href="{% url 'core:cadastrar_cliente' %}" class="btn btn-primary">
+                    <i class="bi bi-person-plus me-2"></i>Cadastrar Cliente
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Paginação -->
+{% if clientes.has_other_pages %}
+<nav aria-label="Paginação de clientes" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if clientes.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if busca %}busca={{ busca }}&{% endif %}page={{ clientes.previous_page_number }}">
+                    <i class="bi bi-chevron-left"></i> Anterior
+                </a>
+            </li>
+        {% endif %}
+
+        {% for num in clientes.paginator.page_range %}
+            {% if clientes.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > clientes.number|add:'-3' and num < clientes.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if busca %}busca={{ busca }}&{% endif %}page={{ num }}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if clientes.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?{% if busca %}busca={{ busca }}&{% endif %}page={{ clientes.next_page_number }}">
+                    Próximo <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+    
+    <div class="text-center mt-2">
+        <small class="text-muted">
+            Página {{ clientes.number }} de {{ clientes.paginator.num_pages }} 
+            ({{ clientes.paginator.count }} clientes no total)
+        </small>
+    </div>
+</nav>
+{% endif %}
+
+<!-- Estatísticas Rápidas -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h6 class="card-title mb-0">
+            <i class="bi bi-graph-up me-2"></i>Estatísticas Rápidas
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-3">
+                <div class="border-end">
+                    <h4 class="text-primary mb-1">{{ clientes.paginator.count }}</h4>
+                    <small class="text-muted">Total de Clientes</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border-end">
+                    <h4 class="text-success mb-1">{{ clientes.paginator.count|default:0 }}</h4>
+                    <small class="text-muted">Clientes Ativos</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border-end">
+                    <h4 class="text-info mb-1">0</h4>
+                    <small class="text-muted">Novos Este Mês</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <h4 class="text-warning mb-1">R$ 0,00</h4>
+                <small class="text-muted">Faturamento Total</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function desativarCliente(clienteId) {
+    if (confirm('Tem certeza que deseja desativar este cliente?')) {
+        // Aqui implementaria a funcionalidade de desativação
+        // Por enquanto, só um alerta
+        alert('Funcionalidade de desativação será implementada');
+    }
+}
+
+function ativarCliente(clienteId) {
+    if (confirm('Tem certeza que deseja ativar este cliente?')) {
+        // Aqui implementaria a funcionalidade de ativação
+        alert('Funcionalidade de ativação será implementada');
+    }
+}
+
+// Foco automático no campo de busca
+document.addEventListener('DOMContentLoaded', function() {
+    const buscaInput = document.querySelector('input[name="busca"]');
+    if (buscaInput && !buscaInput.value) {
+        buscaInput.focus();
+    }
+});
+</script>
+{% endblock %}

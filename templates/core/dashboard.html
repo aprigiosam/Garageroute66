@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard · Oficina Pro{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard
+        </h1>
+        <p class="text-muted">Visão geral das operações da oficina</p>
+    </div>
+    <div>
+        <span class="badge bg-primary fs-6">
+            <i class="bi bi-calendar3 me-1"></i>
+            {{ "now"|date:"d/m/Y" }}
+        </span>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Estatísticas Cards -->
+<div class="row g-4 mb-5">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Clientes Ativos</h6>
+                        <h2 class="card-title mb-0">{{ stats.total_clientes }}</h2>
+                    </div>
+                    <div class="opacity-75">
+                        <i class="bi bi-people fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Veículos</h6>
+                        <h2 class="card-title mb-0">{{ stats.total_veiculos }}</h2>
+                    </div>
+                    <div class="opacity-75">
+                        <i class="bi bi-car-front fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">OS Abertas</h6>
+                        <h2 class="card-title mb-0">{{ stats.ordens_abertas }}</h2>
+                    </div>
+                    <div class="opacity-75">
+                        <i class="bi bi-clipboard-check fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Faturamento Mês</h6>
+                        <h2 class="card-title mb-0">R$ {{ faturamento_mes|floatformat:2 }}</h2>
+                        <small class="text-white-50">{{ stats.ordens_mes }} OS este mês</small>
+                    </div>
+                    <div class="opacity-75">
+                        <i class="bi bi-graph-up fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Gráfico de Faturamento -->
+    <div class="col-xl-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up me-2"></i>Faturamento dos Últimos 6 Meses
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="faturamentoChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ordens por Status -->
+    <div class="col-xl-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pie-chart me-2"></i>Ordens por Status
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for status_info in ordens_por_status %}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <span class="badge 
+                            {% if status_info.status == 'ABERTA' %}bg-primary
+                            {% elif status_info.status == 'EM_ANDAMENTO' %}bg-warning
+                            {% elif status_info.status == 'CONCLUIDA' %}bg-success
+                            {% elif status_info.status == 'ENTREGUE' %}bg-info
+                            {% else %}bg-secondary
+                            {% endif %} me-2">
+                            {{ status_info.count }}
+                        </span>
+                        <span>{{ status_info.status|capfirst }}</span>
+                    </div>
+                    <div class="progress flex-fill mx-3" style="height: 8px;">
+                        <div class="progress-bar 
+                            {% if status_info.status == 'ABERTA' %}bg-primary
+                            {% elif status_info.status == 'EM_ANDAMENTO' %}bg-warning
+                            {% elif status_info.status == 'CONCLUIDA' %}bg-success
+                            {% elif status_info.status == 'ENTREGUE' %}bg-info
+                            {% else %}bg-secondary
+                            {% endif %}" 
+                            style="width: {% widthratio status_info.count stats.ordens_abertas 100 %}%">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <!-- Ordens Urgentes -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-exclamation-triangle text-danger me-2"></i>Ordens Urgentes
+                </h5>
+                <a href="{% url 'core:listar_ordens_servico' %}?prioridade=URGENTE" class="btn btn-outline-primary btn-sm">
+                    Ver todas
+                </a>
+            </div>
+            <div class="card-body">
+                {% if ordens_urgentes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <tbody>
+                                {% for ordem in ordens_urgentes %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-danger me-2">{{ ordem.numero_os }}</span>
+                                            <div>
+                                                <strong>{{ ordem.veiculo.placa }}</strong><br>
+                                                <small class="text-muted">{{ ordem.veiculo.cliente.nome }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="badge bg-warning">{{ ordem.get_status_display }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-check-circle fs-3 d-block mb-2"></i>
+                        Nenhuma ordem urgente no momento
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ordens Vencidas -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock text-warning me-2"></i>Prazos Vencidos
+                </h5>
+                <a href="{% url 'core:listar_ordens_servico' %}" class="btn btn-outline-primary btn-sm">
+                    Ver todas
+                </a>
+            </div>
+            <div class="card-body">
+                {% if ordens_vencidas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <tbody>
+                                {% for ordem in ordens_vencidas %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-warning me-2">{{ ordem.numero_os }}</span>
+                                            <div>
+                                                <strong>{{ ordem.veiculo.placa }}</strong><br>
+                                                <small class="text-muted">{{ ordem.veiculo.cliente.nome }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <small class="text-danger">
+                                            <i class="bi bi-clock"></i>
+                                            {{ ordem.prazo_entrega|date:"d/m H:i" }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-check-circle fs-3 d-block mb-2"></i>
+                        Nenhum prazo vencido
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agendamentos de Hoje -->
+{% if agendamentos_hoje %}
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calendar-event text-info me-2"></i>Agendamentos de Hoje
+                </h5>
+                <a href="{% url 'core:agendamentos' %}" class="btn btn-outline-primary btn-sm">
+                    Ver todos
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Horário</th>
+                                <th>Cliente</th>
+                                <th>Veículo</th>
+                                <th>Serviço</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for agendamento in agendamentos_hoje %}
+                            <tr>
+                                <td>
+                                    <i class="bi bi-clock me-1"></i>
+                                    {{ agendamento.data_agendamento|date:"H:i" }}
+                                </td>
+                                <td>{{ agendamento.cliente.nome }}</td>
+                                <td>
+                                    {% if agendamento.veiculo %}
+                                        {{ agendamento.veiculo.placa }}
+                                    {% else %}
+                                        <span class="text-muted">Não informado</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ agendamento.servico_solicitado|truncatechars:50 }}</td>
+                                <td>
+                                    {% if agendamento.compareceu %}
+                                        <span class="badge bg-success">Compareceu</span>
+                                    {% elif agendamento.confirmado %}
+                                        <span class="badge bg-primary">Confirmado</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pendente</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Ações Rápidas -->
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning me-2"></i>Ações Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <a href="{% url 'core:cadastrar_cliente' %}" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-person-plus d-block fs-3 mb-2"></i>
+                            Novo Cliente
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'core:cadastrar_veiculo' %}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-car-front-fill d-block fs-3 mb-2"></i>
+                            Novo Veículo
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'core:abrir_ordem_servico' %}" class="btn btn-outline-warning w-100">
+                            <i class="bi bi-clipboard-plus d-block fs-3 mb-2"></i>
+                            Nova OS
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'core:agendamentos' %}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-calendar-plus d-block fs-3 mb-2"></i>
+                            Agendamento
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gráfico de Faturamento
+    const ctx = document.getElementById('faturamentoChart').getContext('2d');
+    const faturamentoData = JSON.parse('{{ faturamento_mensal|escapejs }}');
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: faturamentoData.map(item => item.mes),
+            datasets: [{
+                label: 'Faturamento (R$)',
+                data: faturamentoData.map(item => item.valor),
+                borderColor: 'rgb(0, 102, 204)',
+                backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    radius: 6,
+                    hoverRadius: 8
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

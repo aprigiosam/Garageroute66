@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Cliente · Oficina Pro{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item">
+    <a href="{% url 'core:listar_clientes' %}">Clientes</a>
+</li>
+<li class="breadcrumb-item active">Editar {{ cliente.nome }}</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">
+            <i class="bi bi-person-gear text-primary me-2"></i>Editar Cliente
+        </h1>
+        <p class="text-muted">{{ cliente.nome }} - CPF: {{ cliente.cpf }}</p>
+    </div>
+    <div>
+        <a href="{% url 'core:listar_clientes' %}" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left me-2"></i>Voltar
+        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li>
+                    <a class="dropdown-item" 
+                       href="{% url 'core:listar_veiculos' %}?cliente={{ cliente.id }}">
+                        <i class="bi bi-car-front me-2"></i>Ver Veículos ({{ cliente.veiculos.count }})
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" 
+                       href="{% url 'core:listar_ordens_servico' %}?cliente={{ cliente.id }}">
+                        <i class="bi bi-clipboard-check me-2"></i>Ver Ordens de Serviço
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item text-info" href="#" onclick="window.print()">
+                        <i class="bi bi-printer me-2"></i>Imprimir Dados
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Formulário de Edição -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pencil me-2"></i>Informações do Cliente
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="clienteForm">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="{{ form.nome.id_for_label }}" class="form-label">
+                                <i class="bi bi-person me-1"></i>{{ form.nome.label }}
+                            </label>
+                            {{ form.nome }}
+                            {% for error in form.nome.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="{{ form.cpf.id_for_label }}" class="form-label">
+                                <i class="bi bi-card-text me-1"></i>{{ form.cpf.label }}
+                            </label>
+                            {{ form.cpf }}
+                            {% for error in form.cpf.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="{{ form.telefone.id_for_label }}" class="form-label">
+                                <i class="bi bi-telephone me-1"></i>{{ form.telefone.label }}
+                            </label>
+                            {{ form.telefone }}
+                            {% for error in form.telefone.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">
+                                <i class="bi bi-envelope me-1"></i>{{ form.email.label }}
+                            </label>
+                            {{ form.email }}
+                            {% for error in form.email.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-12">
+                            <label for="{{ form.endereco.id_for_label }}" class="form-label">
+                                <i class="bi bi-geo-alt me-1"></i>{{ form.endereco.label }}
+                            </label>
+                            {{ form.endereco }}
+                            {% for error in form.endereco.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-12">
+                            <label for="{{ form.observacoes.id_for_label }}" class="form-label">
+                                <i class="bi bi-chat-text me-1"></i>{{ form.observacoes.label }}
+                            </label>
+                            {{ form.observacoes }}
+                            {% for error in form.observacoes.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-2"></i>Salvar Alterações
+                        </button>
+                        <a href="{% url 'core:listar_clientes' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-2"></i>Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Informações Adicionais -->
+    <div class="col-lg-4">
+        <!-- Estatísticas do Cliente -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-graph-up me-2"></i>Estatísticas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <small class="text-muted">Total de Veículos</small>
+                        <h4 class="mb-0 text-primary">{{ cliente.veiculos.count }}</h4>
+                    </div>
+                    <i class="bi bi-car-front fs-2 text-primary opacity-50"></i>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <small class="text-muted">Total de OS</small>
+                        <h4 class="mb-0 text-info">{{ cliente.total_ordens_servico }}</h4>
+                    </div>
+                    <i class="bi bi-clipboard-check fs-2 text-info opacity-50"></i>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted">Total Gasto</small>
+                        <h4 class="mb-0 text-success">R$ {{ cliente.valor_total_gasto|floatformat:2 }}</h4>
+                    </div>
+                    <i class="bi bi-currency-dollar fs-2 text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informações do Sistema -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-info-circle me-2"></i>Informações do Sistema
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block">Cadastrado em:</small>
+                    <strong>{{ cliente.criado_em|date:"d/m/Y H:i" }}</strong>
+                    {% if cliente.criado_por %}
+                        <br><small class="text-muted">por {{ cliente.criado_por.get_full_name|default:cliente.criado_por.username }}</small>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted d-block">Última atualização:</small>
+                    <strong>{{ cliente.atualizado_em|date:"d/m/Y H:i" }}</strong>
+                    {% if cliente.atualizado_por %}
+                        <br><small class="text-muted">por {{ cliente.atualizado_por.get_full_name|default:cliente.atualizado_por.username }}</small>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <small class="text-muted d-block">Status:</small>
+                    <span class="badge {% if cliente.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+                        {% if cliente.ativo %}Ativo{% else %}Inativo{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Veículos do Cliente -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-car-front me-2"></i>Veículos
+                </h6>
+                <a href="{% url 'core:cadastrar_veiculo' %}?cliente={{ cliente.id }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus"></i>
+                </a>
+            </div>
+            <div class="card-body">
+                {% for veiculo in cliente.veiculos.all %}
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <strong>{{ veiculo.placa }}</strong><br>
+                        <small class="text-muted">{{ veiculo.marca }} {{ veiculo.modelo }}</small>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">{{ veiculo.ano }}</small>
+                        <small class="text-muted">{{ veiculo.ordens_servico.count }} OS</small>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-car-front fs-3 d-block mb-2 opacity-50"></i>
+                    <small>Nenhum veículo cadastrado</small>
+                </div>
+                {% endfor %}
+                
+                {% if cliente.veiculos.exists %}
+                <div class="text-center mt-3">
+                    <a href="{% url 'core:listar_veiculos' %}?cliente={{ cliente.id }}" 
+                       class="btn btn-sm btn-outline-info">
+                        Ver todos os veículos
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Formatação automática de campos
+document.addEventListener('DOMContentLoaded', function() {
+    // Formatação CPF
+    const cpfInput = document.getElementById('{{ form.cpf.id_for_label }}');
+    if (cpfInput) {
+        cpfInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 11) {
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            }
+            e.target.value = value;
+        });
+    }
+    
+    // Formatação Telefone
+    const telefoneInput = document.getElementById('{{ form.telefone.id_for_label }}');
+    if (telefoneInput) {
+        telefoneInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 11) {
+                if (value.length <= 10) {
+                    value = value.replace(/(\d{2})(\d)/, '($1) $2');
+                    value = value.replace(/(\d{4})(\d)/, '$1-$2');
+                } else {
+                    value = value.replace(/(\d{2})(\d)/, '($1) $2');
+                    value = value.replace(/(\d{5})(\d)/, '$1-$2');
+                }
+            }
+            e.target.value = value;
+        });
+    }
+    
+    // Validação do formulário
+    const form = document.getElementById('clienteForm');
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+        const requiredFields = ['nome', 'cpf', 'telefone', 'email'];
+        
+        requiredFields.forEach(fieldName => {
+            const field = form.querySelector(`[name="${fieldName}"]`);
+            if (field && !field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else if (field) {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('Por favor, preencha todos os campos obrigatórios.');
+        }
+    });
+    
+    // Remover classes de erro ao digitar
+    const inputs = form.querySelectorAll('.form-control');
+    inputs.forEach(input => {
+        input.addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+        });
+    });
+});
+
+// Confirmar saída se houver alterações não salvas
+let formAlterado = false;
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('clienteForm');
+    const inputs = form.querySelectorAll('input, textarea, select');
+    
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            formAlterado = true;
+        });
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formAlterado) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+    
+    form.addEventListener('submit', function() {
+        formAlterado = false;
+    });
+});
+</script>
+{% endblock %}
