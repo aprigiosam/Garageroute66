@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Read(//usr/bin/**)"
+      "Read(//usr/bin/**)",
+      "Bash(cd:*)",
+      "Bash(docker:*)",
+      "Bash(/dev/null)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose:*)",
+      "Bash(curl -I http://localhost)",
+      "Bash(curl -I http://localhost:8000)"
     ],
     "deny": [],
     "ask": []

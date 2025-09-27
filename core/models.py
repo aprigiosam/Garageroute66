@@ -3,6 +3,8 @@ from django.db import models
 from django.utils import timezone
 from django.core.validators import RegexValidator, MinValueValidator
 from django.contrib.auth.models import User
+from django.core.cache import cache
+from django.db.models import Count, Sum, Prefetch
 
 
 class TimestampedModel(models.Model):
@@ -15,24 +17,64 @@ class TimestampedModel(models.Model):
     class Meta:
         abstract = True
 
+    def save(self, *args, **kwargs):
+        """Override save para invalidar cache relacionado"""
+        super().save(*args, **kwargs)
+        self._clear_related_cache()
+
+    def _clear_related_cache(self):
+        """Limpa cache relacionado ao modelo"""
+        model_name = self.__class__.__name__.lower()
+        cache_keys = [
+            f'{model_name}_list',
+            f'{model_name}_count',
+            f'dashboard_stats',
+        ]
+        cache.delete_many(cache_keys)
+
+
+class OptimizedManager(models.Manager):
+    """Manager otimizado com cache e prefetch"""
+
+    def get_with_cache(self, cache_key, cache_timeout=300, **kwargs):
+        """Busca objeto com cache"""
+        cached_obj = cache.get(cache_key)
+        if cached_obj is None:
+            try:
+                cached_obj = self.get(**kwargs)
+                cache.set(cache_key, cached_obj, cache_timeout)
+            except self.model.DoesNotExist:
+                return None
+        return cached_obj
+
+    def list_with_cache(self, cache_key, cache_timeout=300, **filters):
+        """Lista objetos com cache"""
+        cached_list = cache.get(cache_key)
+        if cached_list is None:
+            cached_list = list(self.filter(**filters))
+            cache.set(cache_key, cached_list, cache_timeout)
+        return cached_list
+
 
 class Cliente(TimestampedModel):
     nome = models.CharField('Nome', max_length=150)
     telefone = models.CharField(
-        'Telefone', 
+        'Telefone',
         max_length=20,
         validators=[RegexValidator(r'^\(\d{2}\)\s\d{4,5}-\d{4}$', 'Formato: (11) 99999-9999')]
     )
     email = models.EmailField('E-mail')
     endereco = models.CharField('Endereço', max_length=255)
     cpf = models.CharField(
-        'CPF', 
-        max_length=14, 
+        'CPF',
+        max_length=14,
         unique=True,
         validators=[RegexValidator(r'^\d{3}\.\d{3}\.\d{3}-\d{2}$', 'Formato: 000.000.000-00')]
     )
     ativo = models.BooleanField('Ativo', default=True)
     observacoes = models.TextField('Observações', blank=True)
+
+    objects = OptimizedManager()
 
     class Meta:
         verbose_name = 'Cliente'
@@ -49,15 +91,19 @@ class Cliente(TimestampedModel):
 
     @property
     def total_ordens_servico(self):
-        return sum(veiculo.ordens_servico.count() for veiculo in self.veiculos.all())
+        from django.db.models import Count
+        return self.veiculos.aggregate(
+            total=Count('ordens_servico')
+        )['total'] or 0
 
     @property
     def valor_total_gasto(self):
-        total = Decimal('0.00')
-        for veiculo in self.veiculos.all():
-            for ordem in veiculo.ordens_servico.filter(status=OrdemServico.Status.ENTREGUE):
-                total += ordem.total
-        return total
+        from django.db.models import Sum
+        return self.veiculos.filter(
+            ordens_servico__status=OrdemServico.Status.ENTREGUE
+        ).aggregate(
+            total=Sum('ordens_servico__total')
+        )['total'] or Decimal('0.00')
 
 
 class Veiculo(TimestampedModel):

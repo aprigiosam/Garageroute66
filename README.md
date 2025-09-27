@@ -1,6 +1,6 @@
-# Oficina Pro
+# GarageRoute66
 
-Plataforma web para gestao de oficinas mecanicas construida com Django. O projeto reune cadastro de clientes, veiculos, ordens de servico, agendamentos e relatorios em uma interface unica pensada para equipes operacionais.
+Plataforma web completa para gestao de oficinas mecanicas construida com Django. O projeto reune cadastro de clientes, veiculos, ordens de servico, agendamentos e relatorios em uma interface unica pensada para equipes operacionais modernas.
 
 ## Visao geral
 - Autenticacao segura com Django Admin para gestao interna.
@@ -28,10 +28,55 @@ Plataforma web para gestao de oficinas mecanicas construida com Django. O projet
 - Pip e Virtualenv.
 - Banco SQLite (desenvolvimento) ou PostgreSQL (producao).
 - Redis (opcional) quando cache ou filas forem ativados.
-## Preparando o ambiente de desenvolvimento
+## 🚀 Início Rápido com Docker (Recomendado)
+
+### Pré-requisitos
+- Docker 20.10 ou superior
+- Docker Compose 2.0 ou superior
+
+### Desenvolvimento
+```bash
+# 1. Clonar repositório
+git clone https://github.com/seu-usuario/garageRoute66.git
+cd garageRoute66
+
+# 2. Configurar ambiente
+cp .env.example .env
+# Edite .env com suas configurações
+
+# 3. Iniciar com Docker
+make dev-up
+
+# Acesso: http://localhost:8001
+# Admin: http://localhost:8001/admin/
+```
+
+### Produção
+```bash
+# 1. Configurar .env para produção
+cp .env.example .env
+# Configure variáveis de produção
+
+# 2. Deploy
+make up
+
+# Acesso: http://localhost
+# Admin: http://localhost/admin/
+```
+
+### Comandos Úteis
+```bash
+make help              # Ver todos os comandos
+make dev-logs           # Ver logs desenvolvimento
+make migrate            # Executar migrações
+make test               # Executar testes
+make backup-full        # Backup completo
+```
+
+## 📚 Preparando ambiente tradicional (opcional)
 1. Clonar o repositorio:
-   - Comando: `git clone https://github.com/seu-usuario/oficina-pro.git`
-   - Em seguida: `cd oficina-pro`.
+   - Comando: `git clone https://github.com/seu-usuario/garageRoute66.git`
+   - Em seguida: `cd garageRoute66`.
 
 2. Criar e ativar o virtualenv:
    - Linux, macOS ou WSL: `python3 -m venv venv && source venv/bin/activate`.
@@ -82,10 +127,55 @@ Plataforma web para gestao de oficinas mecanicas construida com Django. O projet
 - Avisos de timezone: utilize django.utils.timezone.now() ou timezone.make_aware ao salvar DateTimeField.
 - Debug Toolbar sem aparecer: inclua o IP da maquina em INTERNAL_IPS (especialmente para WSL/Docker).
 
+## ✨ Melhorias Implementadas
+
+### 🔒 Segurança Aprimorada
+- Middleware de auditoria para rastreamento de ações
+- Headers de segurança configurados
+- Validações robustas em formulários
+
+### ⚡ Performance Otimizada
+- Sistema de cache inteligente com invalidação automática
+- Queries otimizadas com select_related e prefetch_related
+- Dashboard com cache de 5 minutos
+
+### 🧪 Testes Automatizados
+- Suíte completa de testes para models, views e forms
+- Cobertura de validações e regras de negócio
+- Testes de integração para workflows completos
+
+### 📊 Banco de Dados Melhorado
+- Índices otimizados para consultas frequentes
+- Manager personalizado com cache integrado
+- Properties otimizadas com agregações
+
+### 📝 Documentação Completa
+- Arquivo MELHORIAS.md com detalhes técnicos
+- Comandos úteis para desenvolvimento e produção
+- Guia de próximos passos
+
+**Para mais detalhes, consulte:**
+- **[MELHORIAS.md](MELHORIAS.md)** - Melhorias técnicas implementadas
+- **[DOCKER.md](DOCKER.md)** - Guia completo do Docker
+
+## Executando Testes
+```bash
+# Ativar ambiente virtual
+source venv/bin/activate
+
+# Executar todos os testes
+python manage.py test core.tests
+
+# Executar com verbose
+python manage.py test core.tests -v 2
+```
+
 ## Proximos passos sugeridos
-- Criar fixtures com dados de exemplo para demonstracoes.
-- Adicionar testes para agendamentos e relatorios.
-- Configurar pipelines de CI/CD para validar build e testes automaticamente.
+- Implementar monitoramento de performance com métricas
+- Configurar pipelines de CI/CD para deployment automatizado
+- Adicionar API REST com Django REST Framework
+- Sistema de notificações por email/SMS
+- Dashboard de analytics avançado
 
 ---
 

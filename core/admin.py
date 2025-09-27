@@ -335,6 +335,6 @@ class AgendamentoAdmin(admin.ModelAdmin):
 
 
 # Personalização do Admin Site
-admin.site.site_header = "Oficina Pro - Administração"
-admin.site.site_title = "Oficina Pro Admin"
+admin.site.site_header = "GarageRoute66 - Administração"
+admin.site.site_title = "GarageRoute66 Admin"
 admin.site.index_title = "Painel de Controle"

@@ -56,6 +56,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.AuditMiddleware',  # Auditoria personalizada
 ]
 
 ROOT_URLCONF = 'oficina.urls'
@@ -101,9 +102,9 @@ if not DEBUG:
         'HOST': env('DB_HOST', default='localhost'),
         'PORT': env('DB_PORT', default='5432'),
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            'charset': 'utf8mb4',
+            'sslmode': 'prefer',
         },
+        'CONN_MAX_AGE': 60,
     }
 
 # Password validation
@@ -149,9 +150,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Security Settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 if not DEBUG:
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_HSTS_SECONDS = 31536000
@@ -159,7 +163,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    X_FRAME_OPTIONS = 'DENY'
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Cache Configuration
 CACHES = {
@@ -205,7 +211,7 @@ EMAIL_PORT = env('EMAIL_PORT', default=587)
 EMAIL_USE_TLS = env('EMAIL_USE_TLS', default=True)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@oficina.com')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@garageroute66.com')
 
 # Configurações de Logging
 LOGGING = {
@@ -257,8 +263,8 @@ BACKUP_SCHEDULE = env('BACKUP_SCHEDULE', default='0 2 * * *')  # Todo dia às 2h
 BACKUP_RETENTION_DAYS = env('BACKUP_RETENTION_DAYS', default=30)
 
 # Configurações da aplicação
-OFICINA_CONFIG = {
-    'COMPANY_NAME': env('COMPANY_NAME', default='Oficina Pro'),
+GARAGE_CONFIG = {
+    'COMPANY_NAME': env('COMPANY_NAME', default='GarageRoute66'),
     'COMPANY_ADDRESS': env('COMPANY_ADDRESS', default=''),
     'COMPANY_PHONE': env('COMPANY_PHONE', default=''),
     'COMPANY_EMAIL': env('COMPANY_EMAIL', default=''),

@@ -1,97 +1,76 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum, Count, Avg
+from django.db.models import Q, Sum, Count, Avg, Prefetch
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.cache import cache_page
 from datetime import datetime, timedelta
 from decimal import Decimal
 import json
 
 from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento
 from .forms import (
-    ClienteForm, OrdemServicoForm, VeiculoForm, 
+    ClienteForm, OrdemServicoForm, VeiculoForm,
     FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
     ItemOrdemServicoFormSet
 )
+from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
 
 
+@cache_page_if_not_staff(timeout=300)
 def dashboard(request):
-    """Dashboard principal com estatísticas"""
+    """Dashboard principal com estatísticas otimizadas"""
     hoje = timezone.now().date()
-    mes_atual = hoje.replace(day=1)
-    
-    # Estatísticas básicas
-    stats = {
-        'total_clientes': Cliente.objects.filter(ativo=True).count(),
-        'total_veiculos': Veiculo.objects.filter(ativo=True).count(),
-        'ordens_abertas': OrdemServico.objects.filter(
-            status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
-        ).count(),
-        'ordens_mes': OrdemServico.objects.filter(data_abertura__gte=mes_atual).count(),
-    }
-    
-    # Faturamento do mês
-    faturamento_mes = OrdemServico.objects.filter(
-        data_abertura__gte=mes_atual,
-        status=OrdemServico.Status.ENTREGUE
-    ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-    
+
+    # Usar cache para estatísticas básicas
+    stats = DashboardCache.get_stats()
+
     # Ordens por status
     ordens_por_status = OrdemServico.objects.values('status').annotate(
         count=Count('id')
     ).order_by('status')
-    
-    # Ordens urgentes
-    ordens_urgentes = OrdemServico.objects.filter(
+
+    # Ordens urgentes com prefetch otimizado
+    ordens_urgentes = OrdemServico.objects.select_related(
+        'veiculo__cliente'
+    ).filter(
         prioridade=OrdemServico.Prioridade.URGENTE,
         status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
     )[:5]
-    
-    # Ordens com prazo vencido
-    ordens_vencidas = OrdemServico.objects.filter(
+
+    # Ordens vencidas
+    ordens_vencidas = OrdemServico.objects.select_related(
+        'veiculo__cliente'
+    ).filter(
         prazo_entrega__lt=timezone.now(),
         status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
     )[:5]
-    
+
     # Agendamentos de hoje
-    agendamentos_hoje = Agendamento.objects.filter(
+    agendamentos_hoje = Agendamento.objects.select_related(
+        'cliente', 'veiculo'
+    ).filter(
         data_agendamento__date=hoje,
         confirmado=True
     ).order_by('data_agendamento')[:5]
-    
-    # Gráfico de faturamento dos últimos 6 meses
-    faturamento_mensal = []
-    for i in range(6):
-        mes = (hoje.replace(day=1) - timedelta(days=30*i)).replace(day=1)
-        proximo_mes = (mes + timedelta(days=32)).replace(day=1)
-        
-        valor = OrdemServico.objects.filter(
-            data_abertura__gte=mes,
-            data_abertura__lt=proximo_mes,
-            status=OrdemServico.Status.ENTREGUE
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        
-        faturamento_mensal.append({
-            'mes': mes.strftime('%b/%Y'),
-            'valor': float(valor)
-        })
-    
-    faturamento_mensal.reverse()
-    
+
+    # Faturamento mensal com cache
+    faturamento_mensal = DashboardCache.get_faturamento_mensal()
+
     context = {
         'stats': stats,
-        'faturamento_mes': faturamento_mes,
+        'faturamento_mes': stats['faturamento_mes'],
         'ordens_por_status': ordens_por_status,
         'ordens_urgentes': ordens_urgentes,
         'ordens_vencidas': ordens_vencidas,
         'agendamentos_hoje': agendamentos_hoje,
         'faturamento_mensal': json.dumps(faturamento_mensal),
     }
-    
+
     return render(request, 'core/dashboard.html', context)
 
 
