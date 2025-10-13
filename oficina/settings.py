@@ -28,7 +28,13 @@ environ.Env.read_env(BASE_DIR / '.env')
 # SECURITY
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
+
+# ALLOWED_HOSTS - aceita string separada por vírgula ou lista
+allowed_hosts_str = env('ALLOWED_HOSTS', default='*')
+if isinstance(allowed_hosts_str, str):
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(',')]
+else:
+    ALLOWED_HOSTS = allowed_hosts_str
 
 # Application definition - MINIMALISTA
 INSTALLED_APPS = [
