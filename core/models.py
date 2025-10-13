@@ -296,15 +296,22 @@ class OrdemServico(TimestampedModel):
 class ItemOrdemServico(models.Model):
     """Itens/serviços específicos de uma ordem de serviço"""
     ordem_servico = models.ForeignKey(OrdemServico, verbose_name='Ordem de Serviço', related_name='itens', on_delete=models.CASCADE)
-    descricao = models.CharField('Descrição', max_length=255)
+
+    # Pode ser uma peça do estoque ou um serviço/item avulso
+    peca = models.ForeignKey('Peca', verbose_name='Peça', on_delete=models.PROTECT, null=True, blank=True, related_name='itens_ordem')
+    descricao = models.CharField('Descrição', max_length=255, help_text='Preencha se for serviço ou item avulso')
+
     quantidade = models.DecimalField('Quantidade', max_digits=10, decimal_places=3, default=Decimal('1.000'))
     valor_unitario = models.DecimalField('Valor unitário', max_digits=10, decimal_places=2, default=Decimal('0.00'))
     valor_total = models.DecimalField('Valor total', max_digits=10, decimal_places=2, editable=False)
+
     tipo = models.CharField('Tipo', max_length=20, choices=[
         ('SERVICO', 'Serviço'),
         ('PECA', 'Peça'),
         ('TERCEIRO', 'Terceiro'),
     ], default='SERVICO')
+
+    dar_baixa_estoque = models.BooleanField('Dar baixa no estoque', default=True, help_text='Desmarque para não movimentar estoque')
 
     class Meta:
         verbose_name = 'Item da Ordem de Serviço'
@@ -312,7 +319,29 @@ class ItemOrdemServico(models.Model):
 
     def save(self, *args, **kwargs):
         self.valor_total = self.quantidade * self.valor_unitario
+
+        # Se é uma peça do estoque e deve dar baixa
+        is_new = not self.pk
+        if is_new and self.peca and self.tipo == 'PECA' and self.dar_baixa_estoque:
+            # Importar aqui para evitar circular import
+            from core.models import MovimentacaoEstoque
+
+            # Criar movimentação de saída
+            MovimentacaoEstoque.objects.create(
+                peca=self.peca,
+                tipo=MovimentacaoEstoque.TipoMovimentacao.SAIDA,
+                quantidade=self.quantidade,
+                valor_unitario=self.valor_unitario,
+                ordem_servico=self.ordem_servico,
+                motivo=f'Saída para OS #{self.ordem_servico.numero_os}'
+            )
+
         super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        if self.peca:
+            return f"{self.peca.codigo} - {self.peca.nome}"
+        return self.descricao
 
 
 class StatusHistorico(models.Model):
@@ -345,3 +374,292 @@ class Agendamento(TimestampedModel):
         verbose_name = 'Agendamento'
         verbose_name_plural = 'Agendamentos'
         ordering = ['data_agendamento']
+
+
+class CategoriaPeca(TimestampedModel):
+    """Categorias para organizar peças"""
+    nome = models.CharField('Nome', max_length=100, unique=True)
+    descricao = models.TextField('Descrição', blank=True)
+    ativo = models.BooleanField('Ativo', default=True)
+
+    class Meta:
+        verbose_name = 'Categoria de Peça'
+        verbose_name_plural = 'Categorias de Peças'
+        ordering = ['nome']
+        indexes = [
+            models.Index(fields=['nome']),
+        ]
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def total_pecas(self):
+        return self.pecas.filter(ativo=True).count()
+
+
+class Fornecedor(TimestampedModel):
+    """Fornecedores de peças"""
+    nome = models.CharField('Nome', max_length=150)
+    razao_social = models.CharField('Razão Social', max_length=200, blank=True)
+    cnpj = models.CharField(
+        'CNPJ',
+        max_length=18,
+        unique=True,
+        validators=[RegexValidator(r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$', 'Formato: 00.000.000/0000-00')]
+    )
+    telefone = models.CharField(
+        'Telefone',
+        max_length=20,
+        validators=[RegexValidator(r'^\(\d{2}\)\s\d{4,5}-\d{4}$', 'Formato: (11) 99999-9999')]
+    )
+    email = models.EmailField('E-mail')
+    endereco = models.CharField('Endereço', max_length=255, blank=True)
+    cidade = models.CharField('Cidade', max_length=100, blank=True)
+    estado = models.CharField('Estado', max_length=2, blank=True)
+    cep = models.CharField(
+        'CEP',
+        max_length=9,
+        blank=True,
+        validators=[RegexValidator(r'^\d{5}-\d{3}$', 'Formato: 00000-000')]
+    )
+    contato = models.CharField('Nome do Contato', max_length=100, blank=True)
+    observacoes = models.TextField('Observações', blank=True)
+    ativo = models.BooleanField('Ativo', default=True)
+
+    objects = OptimizedManager()
+
+    class Meta:
+        verbose_name = 'Fornecedor'
+        verbose_name_plural = 'Fornecedores'
+        ordering = ['nome']
+        indexes = [
+            models.Index(fields=['nome']),
+            models.Index(fields=['cnpj']),
+        ]
+
+    def __str__(self) -> str:
+        return self.nome
+
+    @property
+    def total_pecas_fornecidas(self):
+        return self.pecas.filter(ativo=True).count()
+
+
+class Peca(TimestampedModel):
+    """Estoque de peças"""
+    codigo = models.CharField('Código', max_length=50, unique=True)
+    nome = models.CharField('Nome', max_length=200)
+    descricao = models.TextField('Descrição', blank=True)
+    categoria = models.ForeignKey(
+        CategoriaPeca,
+        verbose_name='Categoria',
+        related_name='pecas',
+        on_delete=models.PROTECT
+    )
+    fornecedor = models.ForeignKey(
+        Fornecedor,
+        verbose_name='Fornecedor',
+        related_name='pecas',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True
+    )
+
+    # Estoque
+    quantidade_estoque = models.DecimalField(
+        'Quantidade em Estoque',
+        max_digits=10,
+        decimal_places=3,
+        default=Decimal('0.000'),
+        validators=[MinValueValidator(Decimal('0.000'))]
+    )
+    estoque_minimo = models.DecimalField(
+        'Estoque Mínimo',
+        max_digits=10,
+        decimal_places=3,
+        default=Decimal('0.000'),
+        validators=[MinValueValidator(Decimal('0.000'))]
+    )
+    estoque_maximo = models.DecimalField(
+        'Estoque Máximo',
+        max_digits=10,
+        decimal_places=3,
+        default=Decimal('0.000'),
+        validators=[MinValueValidator(Decimal('0.000'))],
+        blank=True,
+        null=True
+    )
+
+    # Unidade de medida
+    class UnidadeMedida(models.TextChoices):
+        UNIDADE = 'UN', 'Unidade'
+        PAR = 'PAR', 'Par'
+        CONJUNTO = 'CJ', 'Conjunto'
+        METRO = 'M', 'Metro'
+        LITRO = 'L', 'Litro'
+        QUILOGRAMA = 'KG', 'Quilograma'
+        CAIXA = 'CX', 'Caixa'
+
+    unidade_medida = models.CharField(
+        'Unidade de Medida',
+        max_length=10,
+        choices=UnidadeMedida.choices,
+        default=UnidadeMedida.UNIDADE
+    )
+
+    # Preços
+    preco_custo = models.DecimalField(
+        'Preço de Custo',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    preco_venda = models.DecimalField(
+        'Preço de Venda',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    margem_lucro = models.DecimalField(
+        'Margem de Lucro (%)',
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        editable=False
+    )
+
+    # Localização
+    localizacao = models.CharField('Localização no Estoque', max_length=100, blank=True, help_text='Ex: Prateleira A1, Setor 3')
+
+    # Status
+    ativo = models.BooleanField('Ativo', default=True)
+
+    # Outras informações
+    codigo_fabricante = models.CharField('Código do Fabricante', max_length=100, blank=True)
+    codigo_barras = models.CharField('Código de Barras', max_length=50, blank=True)
+    peso = models.DecimalField('Peso (kg)', max_digits=10, decimal_places=3, null=True, blank=True)
+    observacoes = models.TextField('Observações', blank=True)
+
+    objects = OptimizedManager()
+
+    class Meta:
+        verbose_name = 'Peça'
+        verbose_name_plural = 'Peças'
+        ordering = ['nome']
+        indexes = [
+            models.Index(fields=['codigo']),
+            models.Index(fields=['nome']),
+            models.Index(fields=['categoria', 'ativo']),
+            models.Index(fields=['codigo_barras']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.codigo} - {self.nome}"
+
+    def save(self, *args, **kwargs):
+        # Calcular margem de lucro
+        if self.preco_custo > 0:
+            self.margem_lucro = ((self.preco_venda - self.preco_custo) / self.preco_custo) * 100
+        else:
+            self.margem_lucro = Decimal('0.00')
+
+        super().save(*args, **kwargs)
+
+    @property
+    def estoque_baixo(self):
+        """Verifica se o estoque está abaixo do mínimo"""
+        return self.quantidade_estoque <= self.estoque_minimo
+
+    @property
+    def estoque_critico(self):
+        """Verifica se o estoque está crítico (50% do mínimo)"""
+        return self.quantidade_estoque <= (self.estoque_minimo * Decimal('0.5'))
+
+    @property
+    def valor_total_estoque(self):
+        """Valor total do estoque (custo)"""
+        return self.quantidade_estoque * self.preco_custo
+
+    @property
+    def disponivel(self):
+        """Verifica se há peça disponível"""
+        return self.quantidade_estoque > 0 and self.ativo
+
+
+class MovimentacaoEstoque(models.Model):
+    """Registro de movimentações de estoque"""
+    class TipoMovimentacao(models.TextChoices):
+        ENTRADA = 'ENTRADA', 'Entrada'
+        SAIDA = 'SAIDA', 'Saída'
+        AJUSTE = 'AJUSTE', 'Ajuste'
+        DEVOLUCAO = 'DEVOLUCAO', 'Devolução'
+        PERDA = 'PERDA', 'Perda'
+        TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência'
+
+    peca = models.ForeignKey(Peca, verbose_name='Peça', related_name='movimentacoes', on_delete=models.PROTECT)
+    tipo = models.CharField('Tipo', max_length=20, choices=TipoMovimentacao.choices)
+    quantidade = models.DecimalField(
+        'Quantidade',
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))]
+    )
+    quantidade_anterior = models.DecimalField('Quantidade Anterior', max_digits=10, decimal_places=3)
+    quantidade_nova = models.DecimalField('Quantidade Nova', max_digits=10, decimal_places=3)
+
+    # Valores
+    valor_unitario = models.DecimalField('Valor Unitário', max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    valor_total = models.DecimalField('Valor Total', max_digits=10, decimal_places=2, editable=False)
+
+    # Relações
+    ordem_servico = models.ForeignKey(
+        OrdemServico,
+        verbose_name='Ordem de Serviço',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimentacoes_estoque'
+    )
+    usuario = models.ForeignKey(User, verbose_name='Usuário', on_delete=models.SET_NULL, null=True)
+
+    # Informações adicionais
+    data_movimentacao = models.DateTimeField('Data da Movimentação', auto_now_add=True)
+    motivo = models.TextField('Motivo', blank=True)
+    numero_documento = models.CharField('Número do Documento', max_length=50, blank=True, help_text='NF, Pedido, etc.')
+
+    class Meta:
+        verbose_name = 'Movimentação de Estoque'
+        verbose_name_plural = 'Movimentações de Estoque'
+        ordering = ['-data_movimentacao']
+        indexes = [
+            models.Index(fields=['peca', '-data_movimentacao']),
+            models.Index(fields=['tipo', '-data_movimentacao']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} - {self.peca.codigo} - {self.quantidade}"
+
+    def save(self, *args, **kwargs):
+        # Calcular valor total
+        self.valor_total = self.quantidade * self.valor_unitario
+
+        # Salvar quantidade anterior
+        if not self.pk:  # Nova movimentação
+            self.quantidade_anterior = self.peca.quantidade_estoque
+
+            # Atualizar estoque da peça
+            if self.tipo in [self.TipoMovimentacao.ENTRADA, self.TipoMovimentacao.DEVOLUCAO]:
+                self.peca.quantidade_estoque += self.quantidade
+            elif self.tipo in [self.TipoMovimentacao.SAIDA, self.TipoMovimentacao.PERDA]:
+                self.peca.quantidade_estoque -= self.quantidade
+            elif self.tipo == self.TipoMovimentacao.AJUSTE:
+                # Para ajuste, a quantidade é o novo valor total
+                self.peca.quantidade_estoque = self.quantidade
+
+            self.quantidade_nova = self.peca.quantidade_estoque
+            self.peca.save()
+
+        super().save(*args, **kwargs)

@@ -1,3 +1,9 @@
+# ============================================
+# REQUIREMENTS MÍNIMOS - DEPLOY GRATUITO
+# ============================================
+# Use este arquivo para deploy rápido e gratuito
+# Sem cache, sem relatórios PDF, sem features pesadas
+
 # Django Framework
 Django==5.2.6
 
@@ -8,70 +14,21 @@ django-environ==0.11.2
 whitenoise==6.6.0
 
 # Database drivers
-psycopg[binary]==3.1.19  # PostgreSQL (para produção)
+# SQLite já vem com Python - não precisa de nada!
 
-# Redis for caching (opcional)
-django-redis==5.4.0
+# WSGI Server para produção
+gunicorn==21.2.0
 
-# Email utilities
-django-anymail==10.2  # Para integração com serviços de e-mail
+# Monitoramento básico (opcional - pode remover se quiser)
+# sentry-sdk==1.38.0
 
-# Task queue (opcional)
-celery==5.3.4
-redis==5.0.1
-
-# API (caso necessite no futuro)
-djangorestframework==3.14.0
-django-filter==23.5
-django-cors-headers==4.3.1
-
-# Development tools
-django-debug-toolbar==4.2.0  # Apenas para desenvolvimento
-
-# Testing
-coverage==7.3.2
-factory-boy==3.3.0
-
-# Documentation
-Sphinx==7.2.6
-
-# Utilities
-python-decouple==3.8  # Alternativa ao django-environ
-Pillow==10.1.0  # Para campos de imagem (se necessário)
-
-# Backup utilities
-django-dbbackup==4.0.2
-
-# Reports and PDF generation
-reportlab==4.0.7
-weasyprint==60.2  # Para gerar PDFs
-
-# Excel/CSV handling
-openpyxl==3.1.2
-pandas==2.1.4
-
-# Monitoring (para produção)
-sentry-sdk==1.38.0
-
-# Security
-
-# Admin enhancements
-django-admin-interface==0.28.6
-django-colorfield==0.10.1
-
-# Form utilities
-django-crispy-forms==2.1
-crispy-bootstrap5==0.7
-
-# Internationalization
-django-modeltranslation==0.18.11  # Se precisar de múltiplos idiomas
-
-# Performance
-
-# Deployment
-gunicorn==21.2.0  # WSGI server para produção
-daphne==4.0.0  # ASGI server (se usar WebSockets)
-
-# Monitoring and logging
-django-extensions==3.2.3
-python-dotenv==1.0.0
+# ============================================
+# FEATURES DESABILITADAS (adicione depois se precisar):
+# ============================================
+# - PostgreSQL (psycopg, dj-database-url)
+# - Redis e Celery (cache e filas)
+# - ReportLab e WeasyPrint (PDF)
+# - Django REST Framework (API)
+# - Debug Toolbar
+# - Excel/CSV (openpyxl, pandas)
+# ============================================

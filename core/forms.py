@@ -4,7 +4,10 @@ from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
-from .models import Cliente, OrdemServico, Veiculo, ItemOrdemServico, Agendamento
+from .models import (
+    Cliente, OrdemServico, Veiculo, ItemOrdemServico, Agendamento,
+    CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
+)
 
 
 def validar_cpf(cpf: str) -> bool:
@@ -395,3 +398,158 @@ class RelatorioForm(forms.Form):
                 raise ValidationError('Data início deve ser anterior à data fim.')
         
         return cleaned_data
+
+# ===== FORMULÁRIOS DE PEÇAS E ESTOQUE =====
+
+class CategoriaPecaForm(BaseBootstrapForm):
+    class Meta:
+        model = CategoriaPeca
+        fields = ['nome', 'descricao', 'ativo']
+        widgets = {
+            'descricao': forms.Textarea(attrs={'rows': 3}),
+        }
+
+
+class FornecedorForm(BaseBootstrapForm):
+    class Meta:
+        model = Fornecedor
+        fields = [
+            'nome', 'razao_social', 'cnpj', 'telefone', 'email',
+            'endereco', 'cidade', 'estado', 'cep', 'contato',
+            'observacoes', 'ativo'
+        ]
+        widgets = {
+            'observacoes': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def clean_cnpj(self):
+        cnpj = self.cleaned_data.get('cnpj')
+        if cnpj:
+            qs = Fornecedor.objects.filter(cnpj=cnpj)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError('Já existe um fornecedor cadastrado com este CNPJ.')
+        return cnpj
+
+
+class PecaForm(BaseBootstrapForm):
+    class Meta:
+        model = Peca
+        fields = [
+            'codigo', 'nome', 'descricao', 'categoria', 'fornecedor',
+            'quantidade_estoque', 'estoque_minimo', 'estoque_maximo',
+            'unidade_medida', 'preco_custo', 'preco_venda',
+            'localizacao', 'codigo_fabricante', 'codigo_barras',
+            'peso', 'observacoes', 'ativo'
+        ]
+        widgets = {
+            'descricao': forms.Textarea(attrs={'rows': 3}),
+            'observacoes': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['codigo'].widget.attrs['placeholder'] = 'Ex: FIL001'
+        self.fields['nome'].widget.attrs['placeholder'] = 'Ex: Filtro de Óleo Mann W719/30'
+        self.fields['localizacao'].widget.attrs['placeholder'] = 'Ex: Prateleira A1, Setor 3'
+
+    def clean_codigo(self):
+        codigo = self.cleaned_data.get('codigo')
+        if codigo:
+            qs = Peca.objects.filter(codigo=codigo)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError('Já existe uma peça cadastrada com este código.')
+        return codigo
+
+    def clean(self):
+        cleaned_data = super().clean()
+        preco_custo = cleaned_data.get('preco_custo', Decimal('0'))
+        preco_venda = cleaned_data.get('preco_venda', Decimal('0'))
+
+        if preco_venda < preco_custo:
+            self.add_error('preco_venda', 'Preço de venda não pode ser menor que o preço de custo.')
+
+        estoque_minimo = cleaned_data.get('estoque_minimo', Decimal('0'))
+        estoque_maximo = cleaned_data.get('estoque_maximo')
+
+        if estoque_maximo and estoque_maximo < estoque_minimo:
+            self.add_error('estoque_maximo', 'Estoque máximo não pode ser menor que o mínimo.')
+
+        return cleaned_data
+
+
+class MovimentacaoEstoqueForm(BaseBootstrapForm):
+    class Meta:
+        model = MovimentacaoEstoque
+        fields = [
+            'peca', 'tipo', 'quantidade', 'valor_unitario',
+            'ordem_servico', 'motivo', 'numero_documento'
+        ]
+        widgets = {
+            'motivo': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['peca'].queryset = Peca.objects.filter(ativo=True).select_related('categoria')
+        self.fields['ordem_servico'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        peca = cleaned_data.get('peca')
+        tipo = cleaned_data.get('tipo')
+        quantidade = cleaned_data.get('quantidade', Decimal('0'))
+
+        if peca and tipo:
+            if tipo in [MovimentacaoEstoque.TipoMovimentacao.SAIDA,
+                       MovimentacaoEstoque.TipoMovimentacao.PERDA]:
+                if peca.quantidade_estoque < quantidade:
+                    self.add_error('quantidade',
+                        f'Estoque insuficiente. Disponível: {peca.quantidade_estoque} {peca.get_unidade_medida_display()}'
+                    )
+
+        return cleaned_data
+
+
+class FiltroPecaForm(forms.Form):
+    busca = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por código, nome...'
+        })
+    )
+    categoria = forms.ModelChoiceField(
+        queryset=CategoriaPeca.objects.filter(ativo=True),
+        required=False,
+        empty_label='Todas as categorias',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    fornecedor = forms.ModelChoiceField(
+        queryset=Fornecedor.objects.filter(ativo=True),
+        required=False,
+        empty_label='Todos os fornecedores',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    estoque = forms.ChoiceField(
+        choices=[
+            ('', 'Todos'),
+            ('baixo', 'Estoque Baixo'),
+            ('critico', 'Estoque Crítico'),
+            ('ok', 'Estoque OK'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    ativo = forms.ChoiceField(
+        choices=[
+            ('', 'Todos'),
+            ('True', 'Apenas Ativos'),
+            ('False', 'Apenas Inativos'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )

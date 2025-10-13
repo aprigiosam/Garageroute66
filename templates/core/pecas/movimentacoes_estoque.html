@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Movimentações de Estoque - GarageRoute66{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2"><i class="bi bi-clock-history"></i> Movimentações de Estoque</h1>
+    <div>
+        <a href="{% url 'core:entrada_estoque' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Entrada
+        </a>
+        <a href="{% url 'core:saida_estoque' %}" class="btn btn-danger">
+            <i class="bi bi-dash-circle"></i> Saída
+        </a>
+        <a href="{% url 'core:ajuste_estoque' %}" class="btn btn-warning">
+            <i class="bi bi-tools"></i> Ajuste
+        </a>
+    </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total de Movimentações</h6>
+                <h3 class="mb-0">{{ total_movimentacoes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title">Valor Total Movimentado</h6>
+                <h3 class="mb-0">R$ {{ valor_total|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="tipo" class="form-label">Tipo de Movimentação</label>
+                <select name="tipo" id="tipo" class="form-select">
+                    <option value="">Todos os tipos</option>
+                    {% for value, label in tipos %}
+                    <option value="{{ value }}" {% if request.GET.tipo == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Movimentações -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Peça</th>
+                        <th>Tipo</th>
+                        <th>Quantidade</th>
+                        <th>Valor Unit.</th>
+                        <th>Valor Total</th>
+                        <th>Saldo Após</th>
+                        <th>Usuário</th>
+                        <th>Observações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mov in movimentacoes %}
+                    <tr>
+                        <td>{{ mov.data_movimentacao|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <a href="{% url 'core:detalhes_peca' mov.peca.pk %}">
+                                <strong>{{ mov.peca.codigo }}</strong> - {{ mov.peca.nome|truncatewords:5 }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if mov.tipo == 'ENTRADA' %}
+                                <span class="badge bg-success">{{ mov.get_tipo_display }}</span>
+                            {% elif mov.tipo == 'SAIDA' %}
+                                <span class="badge bg-danger">{{ mov.get_tipo_display }}</span>
+                            {% elif mov.tipo == 'AJUSTE' %}
+                                <span class="badge bg-warning text-dark">{{ mov.get_tipo_display }}</span>
+                            {% elif mov.tipo == 'DEVOLUCAO' %}
+                                <span class="badge bg-info">{{ mov.get_tipo_display }}</span>
+                            {% else %}
+                                <span class="badge bg-dark">{{ mov.get_tipo_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if mov.tipo == 'ENTRADA' or mov.tipo == 'DEVOLUCAO' %}
+                                <span class="text-success fw-bold">+{{ mov.quantidade }}</span>
+                            {% else %}
+                                <span class="text-danger fw-bold">-{{ mov.quantidade }}</span>
+                            {% endif %}
+                            {{ mov.peca.get_unidade_medida_display }}
+                        </td>
+                        <td>R$ {{ mov.valor_unitario|floatformat:2 }}</td>
+                        <td><strong>R$ {{ mov.valor_total|floatformat:2 }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ mov.saldo_apos }} {{ mov.peca.get_unidade_medida_display }}</span></td>
+                        <td>{{ mov.usuario.get_full_name|default:mov.usuario.username }}</td>
+                        <td>
+                            {% if mov.ordem_servico %}
+                                <a href="{% url 'core:detalhes_ordem_servico' mov.ordem_servico.pk %}" class="badge bg-primary text-decoration-none">
+                                    OS #{{ mov.ordem_servico.numero_ordem }}
+                                </a>
+                            {% endif %}
+                            {% if mov.observacoes %}
+                                <small class="text-muted d-block">{{ mov.observacoes|truncatewords:8 }}</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            Nenhuma movimentação encontrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        {% if movimentacoes.has_other_pages %}
+        <nav aria-label="Paginação">
+            <ul class="pagination justify-content-center mt-4">
+                {% if movimentacoes.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ movimentacoes.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">Página {{ movimentacoes.number }} de {{ movimentacoes.paginator.num_pages }}</span>
+                </li>
+
+                {% if movimentacoes.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ movimentacoes.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Próxima</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

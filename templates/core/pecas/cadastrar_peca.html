@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Nova Peça - GarageRoute66{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2"><i class="bi bi-gear-fill"></i> Cadastrar Nova Peça</h1>
+    <a href="{% url 'core:listar_pecas' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Informações Básicas -->
+                    <h5 class="border-bottom pb-2 mb-3">Informações Básicas</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="{{ form.codigo.id_for_label }}" class="form-label">
+                                {{ form.codigo.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.codigo }}
+                            {% if form.codigo.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.codigo.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <small class="text-muted">Código único da peça</small>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="{{ form.nome.id_for_label }}" class="form-label">
+                                {{ form.nome.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.nome }}
+                            {% if form.nome.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.nome.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="{{ form.descricao.id_for_label }}" class="form-label">
+                                {{ form.descricao.label }}
+                            </label>
+                            {{ form.descricao }}
+                            {% if form.descricao.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.descricao.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.categoria.id_for_label }}" class="form-label">
+                                {{ form.categoria.label }}
+                            </label>
+                            {{ form.categoria }}
+                            {% if form.categoria.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.categoria.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <small class="text-muted">
+                                <a href="{% url 'core:cadastrar_categoria' %}" target="_blank">+ Nova categoria</a>
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.fornecedor.id_for_label }}" class="form-label">
+                                {{ form.fornecedor.label }}
+                            </label>
+                            {{ form.fornecedor }}
+                            {% if form.fornecedor.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.fornecedor.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <small class="text-muted">
+                                <a href="{% url 'core:cadastrar_fornecedor' %}" target="_blank">+ Novo fornecedor</a>
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Códigos Adicionais -->
+                    <h5 class="border-bottom pb-2 mb-3 mt-4">Códigos Adicionais</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.codigo_fabricante.id_for_label }}" class="form-label">
+                                {{ form.codigo_fabricante.label }}
+                            </label>
+                            {{ form.codigo_fabricante }}
+                            {% if form.codigo_fabricante.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.codigo_fabricante.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.codigo_barras.id_for_label }}" class="form-label">
+                                {{ form.codigo_barras.label }}
+                            </label>
+                            {{ form.codigo_barras }}
+                            {% if form.codigo_barras.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.codigo_barras.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Preços -->
+                    <h5 class="border-bottom pb-2 mb-3 mt-4">Preços</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.preco_custo.id_for_label }}" class="form-label">
+                                {{ form.preco_custo.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.preco_custo }}
+                            {% if form.preco_custo.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.preco_custo.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.preco_venda.id_for_label }}" class="form-label">
+                                {{ form.preco_venda.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.preco_venda }}
+                            {% if form.preco_venda.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.preco_venda.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Estoque -->
+                    <h5 class="border-bottom pb-2 mb-3 mt-4">Estoque</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="{{ form.quantidade_estoque.id_for_label }}" class="form-label">
+                                {{ form.quantidade_estoque.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.quantidade_estoque }}
+                            {% if form.quantidade_estoque.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.quantidade_estoque.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.estoque_minimo.id_for_label }}" class="form-label">
+                                {{ form.estoque_minimo.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.estoque_minimo }}
+                            {% if form.estoque_minimo.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.estoque_minimo.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.unidade_medida.id_for_label }}" class="form-label">
+                                {{ form.unidade_medida.label }} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.unidade_medida }}
+                            {% if form.unidade_medida.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.unidade_medida.errors.0 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="{{ form.localizacao.id_for_label }}" class="form-label">
+                                {{ form.localizacao.label }}
+                            </label>
+                            {{ form.localizacao }}
+                            {% if form.localizacao.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.localizacao.errors.0 }}
+                            </div>
+                            {% endif %}
+                            <small class="text-muted">Ex: Prateleira A2, Caixa 15</small>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                {{ form.ativo }}
+                                <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
+                                    {{ form.ativo.label }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% url 'core:listar_pecas' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Salvar Peça
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ajuda Lateral -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-info-circle"></i> Dicas
+            </div>
+            <div class="card-body">
+                <h6>Código da Peça</h6>
+                <p class="small">Use um código único e fácil de identificar. Ex: FRE-001, OLE-015</p>
+
+                <h6 class="mt-3">Estoque Mínimo</h6>
+                <p class="small">Defina um estoque mínimo para receber alertas quando precisar repor.</p>
+
+                <h6 class="mt-3">Margem de Lucro</h6>
+                <p class="small">Calculada automaticamente: (Preço Venda - Preço Custo) / Preço Custo × 100</p>
+
+                <h6 class="mt-3">Unidade de Medida</h6>
+                <ul class="small mb-0">
+                    <li><strong>UN</strong> - Unidade (parafusos, filtros)</li>
+                    <li><strong>L</strong> - Litros (óleo, fluidos)</li>
+                    <li><strong>KG</strong> - Quilos (graxa)</li>
+                    <li><strong>M</strong> - Metros (mangueira, cabo)</li>
+                    <li><strong>CX</strong> - Caixa (conjunto de peças)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-warning">
+                <i class="bi bi-exclamation-triangle"></i> Atenção
+            </div>
+            <div class="card-body">
+                <p class="small mb-0">
+                    <strong>Campos obrigatórios (*)</strong> devem ser preenchidos.
+                    O preço de venda não pode ser menor que o preço de custo.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

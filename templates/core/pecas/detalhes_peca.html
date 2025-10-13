@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ peca.nome }} - GarageRoute66{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">
+        <i class="bi bi-gear-fill"></i> {{ peca.codigo }} - {{ peca.nome }}
+    </h1>
+    <div>
+        <a href="{% url 'core:editar_peca' peca.pk %}" class="btn btn-warning">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+        <a href="{% url 'core:listar_pecas' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Informações Principais -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-info-circle"></i> Informações da Peça
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Código:</strong> {{ peca.codigo }}</p>
+                        <p><strong>Nome:</strong> {{ peca.nome }}</p>
+                        <p><strong>Categoria:</strong>
+                            {% if peca.categoria %}
+                                <span class="badge bg-secondary">{{ peca.categoria.nome }}</span>
+                            {% else %}
+                                <span class="text-muted">Sem categoria</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Fornecedor:</strong> {{ peca.fornecedor.nome|default:"Não informado" }}</p>
+                        {% if peca.descricao %}
+                        <p><strong>Descrição:</strong><br>{{ peca.descricao }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {% if peca.codigo_fabricante %}
+                        <p><strong>Código Fabricante:</strong> {{ peca.codigo_fabricante }}</p>
+                        {% endif %}
+                        {% if peca.codigo_barras %}
+                        <p><strong>Código de Barras:</strong> {{ peca.codigo_barras }}</p>
+                        {% endif %}
+                        {% if peca.localizacao %}
+                        <p><strong>Localização:</strong> {{ peca.localizacao }}</p>
+                        {% endif %}
+                        <p><strong>Status:</strong>
+                            {% if peca.ativo %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Criado em:</strong> {{ peca.criado_em|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Atualizado em:</strong> {{ peca.atualizado_em|date:"d/m/Y H:i" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estatísticas de Estoque -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-box-seam"></i> Estoque
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h6>Estoque Atual</h6>
+                        {% if peca.estoque_critico %}
+                            <h3 class="text-danger">{{ peca.quantidade_estoque }} {{ peca.get_unidade_medida_display }}</h3>
+                            <span class="badge bg-danger">CRÍTICO</span>
+                        {% elif peca.estoque_baixo %}
+                            <h3 class="text-warning">{{ peca.quantidade_estoque }} {{ peca.get_unidade_medida_display }}</h3>
+                            <span class="badge bg-warning text-dark">BAIXO</span>
+                        {% else %}
+                            <h3 class="text-success">{{ peca.quantidade_estoque }} {{ peca.get_unidade_medida_display }}</h3>
+                            <span class="badge bg-success">OK</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Estoque Mínimo</h6>
+                        <h3>{{ peca.estoque_minimo }} {{ peca.get_unidade_medida_display }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Total Entradas</h6>
+                        <h3 class="text-success">{{ total_entradas }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Total Saídas</h6>
+                        <h3 class="text-danger">{{ total_saidas }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preços e Valores -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-currency-dollar"></i> Preços e Valores
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h6>Preço de Custo</h6>
+                        <h4>R$ {{ peca.preco_custo|floatformat:2 }}</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Preço de Venda</h6>
+                        <h4>R$ {{ peca.preco_venda|floatformat:2 }}</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Margem de Lucro</h6>
+                        <h4 class="text-success">{{ peca.margem_lucro|floatformat:1 }}%</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Valor em Estoque</h6>
+                        <h4>R$ {{ peca.valor_em_estoque|floatformat:2 }}</h4>
+                        <small class="text-muted">Custo × Estoque</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Histórico de Movimentações -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> Histórico de Movimentações (Últimas 50)</span>
+                <a href="{% url 'core:movimentacoes_estoque' %}?peca={{ peca.pk }}" class="btn btn-sm btn-light">
+                    Ver Todas
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if movimentacoes %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Tipo</th>
+                                <th>Quantidade</th>
+                                <th>Saldo Após</th>
+                                <th>Valor Unitário</th>
+                                <th>Valor Total</th>
+                                <th>Usuário</th>
+                                <th>Observações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mov in movimentacoes %}
+                            <tr>
+                                <td>{{ mov.data_movimentacao|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    {% if mov.tipo == 'ENTRADA' %}
+                                        <span class="badge bg-success">{{ mov.get_tipo_display }}</span>
+                                    {% elif mov.tipo == 'SAIDA' %}
+                                        <span class="badge bg-danger">{{ mov.get_tipo_display }}</span>
+                                    {% elif mov.tipo == 'AJUSTE' %}
+                                        <span class="badge bg-warning text-dark">{{ mov.get_tipo_display }}</span>
+                                    {% elif mov.tipo == 'DEVOLUCAO' %}
+                                        <span class="badge bg-info">{{ mov.get_tipo_display }}</span>
+                                    {% else %}
+                                        <span class="badge bg-dark">{{ mov.get_tipo_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if mov.tipo == 'ENTRADA' or mov.tipo == 'DEVOLUCAO' %}
+                                        <span class="text-success">+{{ mov.quantidade }}</span>
+                                    {% else %}
+                                        <span class="text-danger">-{{ mov.quantidade }}</span>
+                                    {% endif %}
+                                    {{ peca.get_unidade_medida_display }}
+                                </td>
+                                <td><strong>{{ mov.saldo_apos }}</strong> {{ peca.get_unidade_medida_display }}</td>
+                                <td>R$ {{ mov.valor_unitario|floatformat:2 }}</td>
+                                <td>R$ {{ mov.valor_total|floatformat:2 }}</td>
+                                <td>{{ mov.usuario.get_full_name|default:mov.usuario.username }}</td>
+                                <td>
+                                    {% if mov.ordem_servico %}
+                                        <a href="{% url 'core:detalhes_ordem_servico' mov.ordem_servico.pk %}">
+                                            OS #{{ mov.ordem_servico.numero_ordem }}
+                                        </a>
+                                    {% endif %}
+                                    {% if mov.observacoes %}
+                                        <small class="text-muted d-block">{{ mov.observacoes|truncatewords:10 }}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <p class="mt-2">Nenhuma movimentação registrada ainda.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações Rápidas -->
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-lightning"></i> Ações Rápidas
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'core:entrada_estoque' %}?peca={{ peca.pk }}" class="btn btn-success">
+                        <i class="bi bi-arrow-down-circle"></i> Entrada de Estoque
+                    </a>
+                    <a href="{% url 'core:saida_estoque' %}?peca={{ peca.pk }}" class="btn btn-danger">
+                        <i class="bi bi-arrow-up-circle"></i> Saída de Estoque
+                    </a>
+                    <a href="{% url 'core:ajuste_estoque' %}?peca={{ peca.pk }}" class="btn btn-warning">
+                        <i class="bi bi-tools"></i> Ajuste de Estoque
+                    </a>
+                    <hr>
+                    <a href="{% url 'core:editar_peca' peca.pk %}" class="btn btn-outline-warning">
+                        <i class="bi bi-pencil"></i> Editar Peça
+                    </a>
+                    <a href="{% url 'core:movimentacoes_estoque' %}?peca={{ peca.pk }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-clock-history"></i> Ver Todas Movimentações
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% if peca.estoque_critico or peca.estoque_baixo %}
+        <div class="card mb-3">
+            <div class="card-header {% if peca.estoque_critico %}bg-danger{% else %}bg-warning{% endif %} text-white">
+                <i class="bi bi-exclamation-triangle-fill"></i> Alerta de Estoque
+            </div>
+            <div class="card-body">
+                {% if peca.estoque_critico %}
+                <h6 class="text-danger">Estoque Crítico!</h6>
+                <p class="small mb-0">
+                    O estoque está em nível crítico ({{ peca.quantidade_estoque }} {{ peca.get_unidade_medida_display }}).
+                    Recomendamos realizar uma compra urgente.
+                </p>
+                {% else %}
+                <h6 class="text-warning">Estoque Baixo</h6>
+                <p class="small mb-0">
+                    O estoque está abaixo do mínimo ({{ peca.quantidade_estoque }}/{{ peca.estoque_minimo }} {{ peca.get_unidade_medida_display }}).
+                    Considere fazer um pedido de reposição.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-calculator"></i> Cálculos
+            </div>
+            <div class="card-body">
+                <p><strong>Lucro por Unidade:</strong><br>
+                    R$ {{ peca.preco_venda|floatformat:2 }} - R$ {{ peca.preco_custo|floatformat:2 }} =
+                    <span class="text-success">R$ {% widthratio peca.preco_venda 1 1|add:peca.preco_custo|floatformat:2 %}</span>
+                </p>
+                <p><strong>Valor Total Estoque (Custo):</strong><br>
+                    R$ {{ peca.valor_em_estoque|floatformat:2 }}
+                </p>
+                <p class="mb-0"><strong>Valor Total Estoque (Venda):</strong><br>
+                    R$ {% widthratio peca.preco_venda 1 peca.quantidade_estoque|floatformat:2 %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,8 +5,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
-    Cliente, OrdemServico, Veiculo, ItemOrdemServico, 
-    StatusHistorico, Agendamento
+    Cliente, OrdemServico, Veiculo, ItemOrdemServico,
+    StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
+    Peca, MovimentacaoEstoque
 )
 
 
@@ -332,6 +333,248 @@ class AgendamentoAdmin(admin.ModelAdmin):
             obj.criado_por = request.user
         obj.atualizado_por = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(CategoriaPeca)
+class CategoriaPecaAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'total_pecas_count', 'ativo', 'criado_em')
+    list_filter = ('ativo', 'criado_em')
+    search_fields = ('nome', 'descricao')
+    ordering = ('nome',)
+    readonly_fields = ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por')
+
+    fieldsets = (
+        ('Informações', {
+            'fields': ('nome', 'descricao', 'ativo')
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def total_pecas_count(self, obj):
+        count = obj.total_pecas
+        if count > 0:
+            url = reverse('admin:core_peca_changelist') + f'?categoria__id__exact={obj.id}'
+            return format_html('<a href="{}">{} peças</a>', url, count)
+        return '0 peças'
+    total_pecas_count.short_description = 'Total de Peças'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.criado_por = request.user
+        obj.atualizado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Fornecedor)
+class FornecedorAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'cnpj', 'telefone', 'email', 'cidade', 'estado', 'total_pecas_count', 'ativo')
+    list_filter = ('ativo', 'estado', 'cidade', 'criado_em')
+    search_fields = ('nome', 'razao_social', 'cnpj', 'email', 'telefone', 'contato')
+    ordering = ('nome',)
+    readonly_fields = ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por')
+
+    fieldsets = (
+        ('Informações da Empresa', {
+            'fields': ('nome', 'razao_social', 'cnpj')
+        }),
+        ('Contato', {
+            'fields': ('telefone', 'email', 'contato')
+        }),
+        ('Endereço', {
+            'fields': ('endereco', 'cidade', 'estado', 'cep')
+        }),
+        ('Status', {
+            'fields': ('ativo', 'observacoes')
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def total_pecas_count(self, obj):
+        count = obj.total_pecas_fornecidas
+        if count > 0:
+            url = reverse('admin:core_peca_changelist') + f'?fornecedor__id__exact={obj.id}'
+            return format_html('<a href="{}">{} peças</a>', url, count)
+        return '0 peças'
+    total_pecas_count.short_description = 'Peças Fornecidas'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.criado_por = request.user
+        obj.atualizado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+class MovimentacaoEstoqueInline(admin.TabularInline):
+    model = MovimentacaoEstoque
+    extra = 0
+    fields = ('tipo', 'quantidade', 'valor_unitario', 'data_movimentacao', 'usuario', 'motivo')
+    readonly_fields = ('data_movimentacao', 'usuario')
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Peca)
+class PecaAdmin(admin.ModelAdmin):
+    list_display = (
+        'codigo', 'nome', 'categoria', 'fornecedor',
+        'quantidade_estoque_display', 'estoque_status',
+        'preco_custo_display', 'preco_venda_display',
+        'margem_lucro_display', 'valor_estoque_display', 'ativo'
+    )
+    list_filter = ('categoria', 'fornecedor', 'ativo', 'unidade_medida', 'criado_em')
+    search_fields = ('codigo', 'nome', 'descricao', 'codigo_fabricante', 'codigo_barras')
+    autocomplete_fields = ['categoria', 'fornecedor']
+    ordering = ('nome',)
+    readonly_fields = ('margem_lucro', 'criado_em', 'atualizado_em', 'criado_por', 'atualizado_por')
+    inlines = [MovimentacaoEstoqueInline]
+
+    fieldsets = (
+        ('Identificação', {
+            'fields': ('codigo', 'nome', 'descricao', 'categoria', 'fornecedor')
+        }),
+        ('Estoque', {
+            'fields': (
+                'quantidade_estoque', 'estoque_minimo', 'estoque_maximo',
+                'unidade_medida', 'localizacao'
+            )
+        }),
+        ('Preços', {
+            'fields': ('preco_custo', 'preco_venda', 'margem_lucro')
+        }),
+        ('Informações Adicionais', {
+            'fields': ('codigo_fabricante', 'codigo_barras', 'peso', 'observacoes'),
+            'classes': ('collapse',)
+        }),
+        ('Status', {
+            'fields': ('ativo',)
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def quantidade_estoque_display(self, obj):
+        return f'{obj.quantidade_estoque} {obj.get_unidade_medida_display()}'
+    quantidade_estoque_display.short_description = 'Estoque'
+    quantidade_estoque_display.admin_order_field = 'quantidade_estoque'
+
+    def estoque_status(self, obj):
+        if obj.estoque_critico:
+            return format_html('<span class="badge badge-danger">⚠ Crítico</span>')
+        elif obj.estoque_baixo:
+            return format_html('<span class="badge badge-warning">⚠ Baixo</span>')
+        else:
+            return format_html('<span class="badge badge-success">✓ OK</span>')
+    estoque_status.short_description = 'Status'
+
+    def preco_custo_display(self, obj):
+        return f'R$ {obj.preco_custo:,.2f}'
+    preco_custo_display.short_description = 'Custo'
+    preco_custo_display.admin_order_field = 'preco_custo'
+
+    def preco_venda_display(self, obj):
+        return f'R$ {obj.preco_venda:,.2f}'
+    preco_venda_display.short_description = 'Venda'
+    preco_venda_display.admin_order_field = 'preco_venda'
+
+    def margem_lucro_display(self, obj):
+        return f'{obj.margem_lucro:.1f}%'
+    margem_lucro_display.short_description = 'Margem'
+    margem_lucro_display.admin_order_field = 'margem_lucro'
+
+    def valor_estoque_display(self, obj):
+        return f'R$ {obj.valor_total_estoque:,.2f}'
+    valor_estoque_display.short_description = 'Valor Estoque'
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.criado_por = request.user
+        obj.atualizado_por = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(MovimentacaoEstoque)
+class MovimentacaoEstoqueAdmin(admin.ModelAdmin):
+    list_display = (
+        'data_movimentacao', 'peca', 'tipo_badge', 'quantidade_display',
+        'quantidade_anterior', 'quantidade_nova', 'valor_total_display',
+        'ordem_servico_link', 'usuario'
+    )
+    list_filter = ('tipo', 'data_movimentacao', 'usuario', 'peca__categoria')
+    search_fields = ('peca__codigo', 'peca__nome', 'motivo', 'numero_documento', 'ordem_servico__numero_os')
+    autocomplete_fields = ['peca', 'ordem_servico', 'usuario']
+    readonly_fields = ('valor_total', 'data_movimentacao')
+    date_hierarchy = 'data_movimentacao'
+
+    fieldsets = (
+        ('Movimentação', {
+            'fields': ('peca', 'tipo', 'quantidade', 'valor_unitario', 'valor_total')
+        }),
+        ('Quantidades', {
+            'fields': ('quantidade_anterior', 'quantidade_nova')
+        }),
+        ('Relacionamentos', {
+            'fields': ('ordem_servico', 'usuario')
+        }),
+        ('Informações Adicionais', {
+            'fields': ('motivo', 'numero_documento', 'data_movimentacao')
+        }),
+    )
+
+    def tipo_badge(self, obj):
+        color_map = {
+            'ENTRADA': 'success',
+            'SAIDA': 'danger',
+            'AJUSTE': 'warning',
+            'DEVOLUCAO': 'info',
+            'PERDA': 'dark',
+            'TRANSFERENCIA': 'primary',
+        }
+        color = color_map.get(obj.tipo, 'secondary')
+        return format_html(
+            '<span class="badge badge-{}">{}</span>',
+            color,
+            obj.get_tipo_display()
+        )
+    tipo_badge.short_description = 'Tipo'
+    tipo_badge.admin_order_field = 'tipo'
+
+    def quantidade_display(self, obj):
+        return f'{obj.quantidade} {obj.peca.get_unidade_medida_display()}'
+    quantidade_display.short_description = 'Quantidade'
+
+    def valor_total_display(self, obj):
+        return f'R$ {obj.valor_total:,.2f}'
+    valor_total_display.short_description = 'Valor Total'
+    valor_total_display.admin_order_field = 'valor_total'
+
+    def ordem_servico_link(self, obj):
+        if obj.ordem_servico:
+            url = reverse('admin:core_ordemservico_change', args=[obj.ordem_servico.pk])
+            return format_html('<a href="{}">OS #{}</a>', url, obj.ordem_servico.numero_os)
+        return '-'
+    ordem_servico_link.short_description = 'OS'
+
+    def has_add_permission(self, request):
+        # Permitir adicionar movimentações manualmente
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        # Não permitir edição de movimentações existentes
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Não permitir exclusão de movimentações
+        return False
 
 
 # Personalização do Admin Site
