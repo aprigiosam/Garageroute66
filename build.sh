@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build script MINIMALISTA para Render/Railway (Deploy Gratuito)
+# Build script para Render/Railway (Deploy Gratuito)
 
 set -o errexit  # Exit on error
 
-echo "🚀 Iniciando build MINIMALISTA do Oficina Pro..."
+echo "🚀 Iniciando build do GarageRoute66..."
 
 # Instalar dependências
 echo "📦 Instalando dependências..."

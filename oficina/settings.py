@@ -171,7 +171,7 @@ LOGGING = {
 
 # Configurações da aplicação - DESABILITADAS features pesadas
 GARAGE_CONFIG = {
-    'COMPANY_NAME': env('COMPANY_NAME', default='Oficina Pro'),
+    'COMPANY_NAME': env('COMPANY_NAME', default='GarageRoute66'),
     'OS_PREFIX': env('OS_PREFIX', default='OS'),
     'AUTO_GENERATE_OS_NUMBER': True,
     'SEND_EMAIL_NOTIFICATIONS': False,  # Desabilitado
