@@ -22,10 +22,8 @@ python manage.py collectstatic --no-input
 echo "🗄️  Executando migrações do banco de dados..."
 python manage.py migrate --no-input
 
-# Criar superusuário (se variáveis de ambiente estiverem definidas)
-if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
-    echo "👤 Criando superusuário..."
-    python manage.py createsuperuser --no-input || echo "Superusuário já existe ou erro ao criar"
-fi
+# Criar superusuário automaticamente
+echo "👤 Criando superusuário automaticamente..."
+python create_admin.py
 
 echo "✅ Build concluído com sucesso!"
