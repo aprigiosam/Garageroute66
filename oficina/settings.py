@@ -30,7 +30,7 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 
 # ALLOWED_HOSTS - aceita string separada por vírgula ou lista
-allowed_hosts_str = env('ALLOWED_HOSTS', default='*')
+allowed_hosts_str = env('ALLOWED_HOSTS', default='*.onrender.com,localhost,127.0.0.1')
 if isinstance(allowed_hosts_str, str):
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(',')]
 else:
