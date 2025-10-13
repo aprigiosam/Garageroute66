@@ -24,6 +24,7 @@ urlpatterns = [
     path('agendamentos/', views.agendamentos, name='agendamentos'),
 
     path('relatorios/', views.relatorios, name='relatorios'),
+    path('backup-database/', views.backup_database, name='backup_database'),
 
     # URLs de Peças
     path('pecas/', views_pecas.listar_pecas, name='listar_pecas'),

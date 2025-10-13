@@ -190,68 +190,133 @@
 
         /* Larger touch targets for mobile */
         @media (max-width: 768px) {
-            .btn {
-                padding: 12px 20px;
-                font-size: 16px;
+            /* Bottom navbar on mobile */
+            nav.sidebar {
+                min-height: auto !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: auto !important;
+                z-index: 1030 !important;
+                height: 65px !important;
+                padding: 0 !important;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.2) !important;
+                border-radius: 0 !important;
             }
 
-            .form-control, .form-select {
-                font-size: 16px;
-                padding: 12px;
+            /* Hide logo and sections on mobile */
+            .sidebar h3,
+            .sidebar h6,
+            .sidebar .mt-3,
+            .sidebar .mt-auto {
+                display: none !important;
             }
 
-            .table {
-                font-size: 14px;
-            }
-
-            .card {
-                margin-bottom: 1rem;
-            }
-
-            /* Mobile sidebar */
-            .sidebar {
-                min-height: auto;
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                z-index: 1030;
-                height: auto;
-                box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-            }
-
+            /* Show only main navigation items */
             .sidebar .nav {
-                flex-direction: row;
-                justify-content: space-around;
-                overflow-x: auto;
+                flex-direction: row !important;
+                justify-content: space-evenly !important;
+                align-items: center !important;
+                height: 65px !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                padding: 0 5px !important;
+                margin: 0 !important;
             }
 
-            .sidebar .nav-link {
-                flex-direction: column;
-                padding: 8px;
-                font-size: 10px;
-                min-width: 60px;
+            .sidebar .nav-item {
+                flex: 0 0 auto !important;
+                margin: 0 !important;
+            }
+
+            .sidebar .nav-link,
+            .sidebar .nav-link button {
+                flex-direction: column !important;
+                justify-content: center !important;
+                align-items: center !important;
+                padding: 8px 10px !important;
+                font-size: 9px !important;
+                min-width: 65px !important;
+                height: 60px !important;
+                margin: 0 !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                border: none !important;
+                background: transparent !important;
             }
 
             .sidebar .nav-link i {
-                font-size: 20px;
-                margin-bottom: 4px;
-            }
-
-            .sidebar h3 {
-                display: none;
+                font-size: 22px !important;
+                margin: 0 0 4px 0 !important;
+                display: block !important;
             }
 
             /* Main content adjustment */
             .main-content {
-                margin-bottom: 80px;
-                padding-bottom: 20px;
+                margin-bottom: 75px !important;
+                margin-left: 0 !important;
+                padding: 15px !important;
+                width: 100% !important;
             }
 
-            /* Hide text on mobile nav, show only icons */
-            .sidebar .nav-link span.d-md-inline {
-                display: inline !important;
-                margin-top: 2px;
+            /* Reduce padding in mobile */
+            .main-content > .p-4 {
+                padding: 15px !important;
+            }
+
+            /* Responsive tables */
+            .table-responsive {
+                border: none !important;
+                margin-bottom: 1rem !important;
+            }
+
+            .table {
+                font-size: 12px !important;
+            }
+
+            .table th,
+            .table td {
+                padding: 8px 4px !important;
+                white-space: nowrap !important;
+            }
+
+            /* Stack cards vertically */
+            .row > [class*="col-"] {
+                margin-bottom: 1rem !important;
+            }
+
+            /* Smaller buttons on mobile */
+            .btn {
+                padding: 6px 12px !important;
+                font-size: 13px !important;
+            }
+
+            .btn-sm {
+                padding: 4px 8px !important;
+                font-size: 11px !important;
+            }
+
+            /* Adjust cards */
+            .card {
+                margin-bottom: 15px !important;
+            }
+
+            .card-body {
+                padding: 15px !important;
+            }
+
+            /* Breadcrumb smaller */
+            .breadcrumb {
+                font-size: 12px !important;
+                padding: 8px 0 !important;
+            }
+
+            /* Hide less important columns on very small screens */
+            @media (max-width: 576px) {
+                .table .d-none-mobile {
+                    display: none !important;
+                }
             }
         }
 
@@ -323,11 +388,7 @@
             }
         }
 
-        @media (max-width: 768px) {
-            .sidebar {
-                min-height: auto;
-            }
-        }
+
     </style>
 
     {% block extra_css %}{% endblock %}
@@ -355,26 +416,27 @@
                 </div>
                 
                 <ul class="nav nav-pills flex-column">
+                    <!-- Mobile: mostra apenas itens principais -->
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+                        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
                            href="{% url 'core:dashboard' %}">
-                            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                            <i class="bi bi-speedometer2 me-2"></i><span>Dashboard</span>
                         </a>
                     </li>
-                    
+
                     <li class="nav-item mt-3">
                         <h6 class="text-white-50 text-uppercase small">Cadastros</h6>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if 'cliente' in request.resolver_match.url_name %}active{% endif %}" 
+                        <a class="nav-link {% if 'cliente' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_clientes' %}">
-                            <i class="bi bi-people me-2"></i>Clientes
+                            <i class="bi bi-people me-2"></i><span>Clientes</span>
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-md-block">
                         <a class="nav-link {% if 'veiculo' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_veiculos' %}">
-                            <i class="bi bi-car-front me-2"></i>Veículos
+                            <i class="bi bi-car-front me-2"></i><span>Veículos</span>
                         </a>
                     </li>
 
@@ -384,19 +446,19 @@
                     <li class="nav-item">
                         <a class="nav-link {% if 'peca' in request.resolver_match.url_name or 'estoque' in request.resolver_match.url_name or 'categoria' in request.resolver_match.url_name or 'fornecedor' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_pecas' %}">
-                            <i class="bi bi-gear-fill me-2"></i>Peças
+                            <i class="bi bi-gear-fill me-2"></i><span>Peças</span>
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-md-block">
                         <a class="nav-link {% if 'categoria' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_categorias' %}">
-                            <i class="bi bi-tags-fill me-2"></i>Categorias
+                            <i class="bi bi-tags-fill me-2"></i><span>Categorias</span>
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none d-md-block">
                         <a class="nav-link {% if 'fornecedor' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_fornecedores' %}">
-                            <i class="bi bi-truck me-2"></i>Fornecedores
+                            <i class="bi bi-truck me-2"></i><span>Fornecedores</span>
                         </a>
                     </li>
 
@@ -404,27 +466,40 @@
                         <h6 class="text-white-50 text-uppercase small">Operações</h6>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if 'ordem' in request.resolver_match.url_name %}active{% endif %}" 
+                        <a class="nav-link {% if 'ordem' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:listar_ordens_servico' %}">
-                            <i class="bi bi-clipboard-check me-2"></i>Ordens de Serviço
+                            <i class="bi bi-clipboard-check me-2"></i><span>Ordens</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if 'agendamento' in request.resolver_match.url_name %}active{% endif %}" 
+                        <a class="nav-link {% if 'agendamento' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:agendamentos' %}">
-                            <i class="bi bi-calendar-event me-2"></i>Agendamentos
+                            <i class="bi bi-calendar-event me-2"></i><span>Agenda</span>
                         </a>
                     </li>
-                    
-                    <li class="nav-item mt-3">
+
+                    <li class="nav-item mt-3 d-none d-md-block">
                         <h6 class="text-white-50 text-uppercase small">Relatórios</h6>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'relatorio' in request.resolver_match.url_name %}active{% endif %}" 
+                    <li class="nav-item d-none d-md-block">
+                        <a class="nav-link {% if 'relatorio' in request.resolver_match.url_name %}active{% endif %}"
                            href="{% url 'core:relatorios' %}">
-                            <i class="bi bi-graph-up me-2"></i>Relatórios
+                            <i class="bi bi-graph-up me-2"></i><span>Relatórios</span>
                         </a>
                     </li>
+                    {% if user.is_superuser %}
+                    <li class="nav-item mt-3 d-none d-md-block">
+                        <h6 class="text-white-50 text-uppercase small">Admin</h6>
+                    </li>
+                    <li class="nav-item d-none d-md-block">
+                        <form action="{% url 'core:backup_database' %}" method="post" onsubmit="return confirm('Tem certeza que deseja criar um backup do banco de dados agora?');">
+                            {% csrf_token %}
+                            <button type="submit" class="nav-link text-start w-100">
+                                <i class="bi bi-database-down me-2"></i><span>Backup DB</span>
+                            </button>
+                        </form>
+                    </li>
+                    {% endif %}
                 </ul>
                 
                 <div class="mt-auto pt-4">

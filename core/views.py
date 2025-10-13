@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Sum, Count, Avg, Prefetch
 from django.http import JsonResponse, HttpResponse
@@ -19,6 +19,8 @@ from .forms import (
     ItemOrdemServicoFormSet
 )
 from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
+from .backup_utils import create_db_backup
+from django.core.management.base import CommandError
 
 
 @cache_page_if_not_staff(timeout=300)
@@ -444,3 +446,18 @@ def api_veiculos_cliente(request):
     ).values('id', 'placa', 'marca', 'modelo')
     
     return JsonResponse(list(veiculos), safe=False)
+
+@login_required
+@permission_required('is_superuser', raise_exception=True)
+def backup_database(request):
+    """
+    View para criar um backup do banco de dados.
+    """
+    if request.method == 'POST':
+        try:
+            backup_path = create_db_backup()
+            messages.success(request, f'Backup do banco de dados criado com sucesso em: {backup_path}')
+        except CommandError as e:
+            messages.error(request, f'Erro ao criar o backup: {e}')
+    
+    return redirect('core:dashboard')
