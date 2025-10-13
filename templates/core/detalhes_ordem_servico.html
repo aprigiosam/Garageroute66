@@ -490,7 +490,7 @@
                         <td>
                             <span class="badge bg-primary">{{ evento.get_status_novo_display }}</span>
                         </td>
-                        <td>{{ evento.usuario.get_full_name|default:evento.usuario.username|default:'-' }}</td>
+                        <td>{% if evento.usuario %}{{ evento.usuario.get_full_name|default:evento.usuario.username }}{% else %}<span class="text-muted">Sistema</span>{% endif %}</td>
                         <td>{{ evento.observacao|default:'-' }}</td>
                     </tr>
                     {% endfor %}
