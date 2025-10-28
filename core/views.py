@@ -23,57 +23,26 @@ from .backup_utils import create_db_backup
 from django.core.management.base import CommandError
 
 
-@cache_page_if_not_staff(timeout=300)
+import os
+
 def dashboard(request):
-    """Dashboard principal com estatísticas otimizadas"""
-    hoje = timezone.now().date()
-
-    # Usar cache para estatísticas básicas
-    stats = DashboardCache.get_stats()
-
-    # Ordens por status
-    ordens_por_status = OrdemServico.objects.values('status').annotate(
-        count=Count('id')
-    ).order_by('status')
-
-    # Ordens urgentes com prefetch otimizado
-    ordens_urgentes = OrdemServico.objects.select_related(
-        'veiculo__cliente'
-    ).filter(
-        prioridade=OrdemServico.Prioridade.URGENTE,
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
-    )[:5]
-
-    # Ordens vencidas
-    ordens_vencidas = OrdemServico.objects.select_related(
-        'veiculo__cliente'
-    ).filter(
-        prazo_entrega__lt=timezone.now(),
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
-    )[:5]
-
-    # Agendamentos de hoje
-    agendamentos_hoje = Agendamento.objects.select_related(
-        'cliente', 'veiculo'
-    ).filter(
-        data_agendamento__date=hoje,
-        confirmado=True
-    ).order_by('data_agendamento')[:5]
-
-    # Faturamento mensal com cache
-    faturamento_mensal = DashboardCache.get_faturamento_mensal()
-
-    context = {
-        'stats': stats,
-        'faturamento_mes': stats['faturamento_mes'],
-        'ordens_por_status': ordens_por_status,
-        'ordens_urgentes': ordens_urgentes,
-        'ordens_vencidas': ordens_vencidas,
-        'agendamentos_hoje': agendamentos_hoje,
-        'faturamento_mensal': json.dumps(faturamento_mensal),
-    }
-
-    return render(request, 'core/dashboard.html', context)
+    """DEBUG: Mostra a DATABASE_URL do ambiente."""
+    db_url = os.environ.get('DATABASE_URL', 'VARIÁVEL DATABASE_URL NÃO ENCONTRADA NO AMBIENTE')
+    
+    html = f"""
+    <html>
+        <head><title>Debug DATABASE_URL</title></head>
+        <body style="font-family: sans-serif; padding: 2em;">
+            <h1>Debug da Variável de Ambiente <code>DATABASE_URL</code></h1>
+            <p>A URL de conexão que o seu aplicativo está enxergando no ambiente de <strong>runtime</strong> é:</p>
+            <pre style="background-color: #f0f0f0; padding: 1em; border: 1px solid #ccc; white-space: pre-wrap; word-wrap: break-word;">{db_url}</pre>
+            <hr>
+            <p>Se a porta nesta URL for <strong>5432</strong>, você encontrou a causa do erro.</p>
+            <p>A solução é encontrar onde esta variável incorreta está sendo definida no painel do Render e corrigi-la ou removê-la, garantindo que apenas a variável com a porta correta (a do seu painel do Supabase) seja usada.</p>
+        </body>
+    </html>
+    """
+    return HttpResponse(html)
 
 
 @login_required
