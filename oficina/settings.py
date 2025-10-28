@@ -30,15 +30,13 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 
 # ALLOWED_HOSTS - aceita string separada por vírgula ou lista
-allowed_hosts_str = env('ALLOWED_HOSTS', default='') # Removendo o default para forçar a leitura da env
-if allowed_hosts_str:
-    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(',')]
+allowed_hosts_list = env.list('ALLOWED_HOSTS', default=[])
+if allowed_hosts_list:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_list if h.strip()]
 else:
     # Fallback para garantir que sempre haja um valor, caso a variável de ambiente não seja definida
     # ou esteja vazia. Isso deve ser sobrescrito pela variável de ambiente no Render.
     ALLOWED_HOSTS = ['garageroute66.onrender.com', '*.onrender.com', 'localhost', '127.0.0.1']
-
-print(f"DEBUG: ALLOWED_HOSTS configurado como: {ALLOWED_HOSTS}") # Adicionando um print para debug
 
 # Application definition - MINIMALISTA
 INSTALLED_APPS = [

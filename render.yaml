@@ -5,18 +5,3 @@ services:
     region: Virginia
     buildCommand: "./build.sh"
     startCommand: "gunicorn oficina.wsgi:application --bind 0.0.0.0:$PORT --workers 4 --threads 2 --timeout 60 --access-logfile - --error-logfile -"
-    envVars:
-      - key: DATABASE_URL
-        value: "postgresql://postgres.rbxtecjtlgncqzcewyth:VHeLE0BtBx4GpSCi@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
-      - key: SECRET_KEY
-        generateValue: true
-      - key: WEB_CONCURRENCY
-        value: 1
-      - key: DJANGO_SUPERUSER_USERNAME
-        value: admin
-      - key: DJANGO_SUPERUSER_EMAIL
-        value: admin@garageroute66.com
-      - key: DJANGO_SUPERUSER_PASSWORD
-        generateValue: true
-      - key: ALLOWED_HOSTS
-        value: "garageroute66.onrender.com,*.onrender.com,localhost,127.0.0.1"

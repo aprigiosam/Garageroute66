@@ -10,7 +10,7 @@ echo "📦 Instalando dependências..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Criar diretório de logs
+# Criar diretórios úteis
 echo "📁 Criando diretórios necessários..."
 mkdir -p logs
 
@@ -22,8 +22,12 @@ python manage.py collectstatic --no-input
 echo "🗄️  Executando migrações do banco de dados..."
 python manage.py migrate --no-input
 
-# Criar superusuário automaticamente
-echo "👤 Criando superusuário automaticamente..."
-python create_admin.py
+# Aviso sobre criação do superusuário
+cat <<'EOF'
+ℹ️  Build finalizado. Lembre-se de executar "python create_admin.py"
+    manualmente (ou via job pós-deploy) com as variáveis de ambiente
+    DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL e DJANGO_SUPERUSER_PASSWORD
+    definidas no Render.
+EOF
 
 echo "✅ Build concluído com sucesso!"

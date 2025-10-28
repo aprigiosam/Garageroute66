@@ -15,9 +15,25 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 # Credenciais via variáveis de ambiente (define no Render)
-username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
-email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@garageroute66.com')
-password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'Admin@2024!Change')
+missing = []
+username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
+email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
+password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
+
+for var, value in (
+    ('DJANGO_SUPERUSER_USERNAME', username),
+    ('DJANGO_SUPERUSER_EMAIL', email),
+    ('DJANGO_SUPERUSER_PASSWORD', password),
+):
+    if not value:
+        missing.append(var)
+
+if missing:
+    vars_str = ", ".join(missing)
+    raise SystemExit(
+        f'❌ Variáveis ausentes: {vars_str}. '
+        'Defina-as antes de executar create_admin.py.'
+    )
 
 # Verificar se admin já existe
 if User.objects.filter(username=username).exists():
