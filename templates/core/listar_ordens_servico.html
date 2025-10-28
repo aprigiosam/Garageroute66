@@ -111,7 +111,8 @@
                         <td>
                             <div>
                                 <strong>{{ ordem.veiculo.placa }}</strong><br>
-                                <small class="text-muted">{{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</small>
+                                <small class="text-muted d-block">{{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</small>
+                                <span class="small">{{ ordem.descricao_problema|default:"–" }}</span>
                             </div>
                         </td>
                         <td>
@@ -219,6 +220,11 @@
                             <div class="mb-3">
                                 <small class="text-muted d-block">Cliente:</small>
                                 <strong>{{ ordem.veiculo.cliente.nome }}</strong>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Descrição:</small>
+                                <span>{{ ordem.descricao_problema|default:"Sem descrição" }}</span>
                             </div>
                             
                             <div class="row g-2 mb-3">

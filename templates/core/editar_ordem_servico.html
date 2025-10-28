@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Editar OS #{{ ordem.numero_os }} · Oficina Pro{% endblock %}
+{% block title %}Editar OS #{{ ordem.numero_os }} · Garage Route 66{% endblock %}
 
 {% block breadcrumb_items %}
 <li class="breadcrumb-item">
@@ -19,88 +19,71 @@
             <i class="bi bi-pencil-square text-primary me-2"></i>
             Editar OS #{{ ordem.numero_os }}
         </h1>
-        <p class="text-muted">{{ ordem.veiculo.placa }} - {{ ordem.cliente.nome }}</p>
+        <p class="text-muted mb-0">
+            {{ ordem.veiculo.placa }} · {{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}
+        </p>
+        <small class="text-muted">Cliente: {{ ordem.cliente.nome }}</small>
     </div>
-    <div>
-        <a href="{% url 'core:detalhes_ordem_servico' ordem.id %}" class="btn btn-outline-secondary me-2">
-            <i class="bi bi-arrow-left me-2"></i>Voltar
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'core:detalhes_ordem_servico' ordem.id %}">
+            <i class="bi bi-arrow-left me-1"></i> Detalhes
         </a>
-        <a href="{% url 'core:listar_ordens_servico' %}" class="btn btn-outline-info">
-            <i class="bi bi-list me-2"></i>Lista de OS
+        <a class="btn btn-outline-info" href="{% url 'core:listar_ordens_servico' %}">
+            <i class="bi bi-list-ul me-1"></i> Todas as OS
         </a>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<form method="post" id="ordemServicoForm">
+<form method="post" novalidate>
     {% csrf_token %}
-    <div class="row">
-        <!-- Formulário Principal -->
+    <div class="row g-4">
         <div class="col-lg-8">
-            <!-- Informações Básicas -->
+            <!-- Dados principais -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-info-circle me-2"></i>Informações Básicas
-                    </h5>
+                    <strong><i class="bi bi-info-circle me-2"></i>Informações gerais</strong>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="{{ form.veiculo.id_for_label }}" class="form-label">
-                                <i class="bi bi-car-front me-1"></i>{{ form.veiculo.label }}
-                            </label>
+                            <label class="form-label">{{ form.veiculo.label }}</label>
                             {{ form.veiculo }}
                             {% for error in form.veiculo.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.status.id_for_label }}" class="form-label">
-                                <i class="bi bi-flag me-1"></i>Status
-                            </label>
+                            <label class="form-label">Status</label>
                             {{ form.status }}
                             {% for error in form.status.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.prioridade.id_for_label }}" class="form-label">
-                                <i class="bi bi-exclamation-triangle me-1"></i>{{ form.prioridade.label }}
-                            </label>
+                            <label class="form-label">{{ form.prioridade.label }}</label>
                             {{ form.prioridade }}
                             {% for error in form.prioridade.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-6">
-                            <label for="{{ form.responsavel_tecnico.id_for_label }}" class="form-label">
-                                <i class="bi bi-person-gear me-1"></i>{{ form.responsavel_tecnico.label }}
-                            </label>
+                            <label class="form-label">{{ form.responsavel_tecnico.label }}</label>
                             {{ form.responsavel_tecnico }}
                             {% for error in form.responsavel_tecnico.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.km_entrada.id_for_label }}" class="form-label">
-                                <i class="bi bi-speedometer me-1"></i>{{ form.km_entrada.label }}
-                            </label>
+                            <label class="form-label">{{ form.km_entrada.label }}</label>
                             {{ form.km_entrada }}
                             {% for error in form.km_entrada.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.prazo_entrega.id_for_label }}" class="form-label">
-                                <i class="bi bi-calendar-event me-1"></i>{{ form.prazo_entrega.label }}
-                            </label>
+                            <label class="form-label">{{ form.prazo_entrega.label }}</label>
                             {{ form.prazo_entrega }}
                             {% for error in form.prazo_entrega.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
@@ -113,41 +96,43 @@
             <!-- Descrições -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-chat-text me-2"></i>Descrições
-                    </h5>
+                    <strong><i class="bi bi-chat-text me-2"></i>Descrições</strong>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label for="{{ form.descricao_problema.id_for_label }}" class="form-label">
-                                <i class="bi bi-exclamation-circle me-1"></i>{{ form.descricao_problema.label }}
-                            </label>
-                            {{ form.descricao_problema }}
-                            {% for error in form.descricao_problema.errors %}
-                                <div class="invalid-feedback d-block">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-                        
-                        <div class="col-12">
-                            <label for="{{ form.diagnostico.id_for_label }}" class="form-label">
-                                <i class="bi bi-search me-1"></i>{{ form.diagnostico.label }}
-                            </label>
-                            {{ form.diagnostico }}
-                            {% for error in form.diagnostico.errors %}
-                                <div class="invalid-feedback d-block">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-                        
-                        <div class="col-12">
-                            <label for="{{ form.solucao.id_for_label }}" class="form-label">
-                                <i class="bi bi-tools me-1"></i>Solução Aplicada
-                            </label>
-                            {{ form.solucao }}
-                            {% for error in form.solucao.errors %}
-                                <div class="invalid-feedback d-block">{{ error }}</div>
-                            {% endfor %}
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.descricao_problema.label }}</label>
+                        {{ form.descricao_problema }}
+                        {% for error in form.descricao_problema.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.diagnostico.label }}</label>
+                        {{ form.diagnostico }}
+                        {% for error in form.diagnostico.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.solucao.label }}</label>
+                        {{ form.solucao }}
+                        {% for error in form.solucao.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.observacoes.label }}</label>
+                        {{ form.observacoes }}
+                        {% for error in form.observacoes.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">{{ form.observacoes_internas.label }}</label>
+                        {{ form.observacoes_internas }}
+                        {% for error in form.observacoes_internas.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -155,91 +140,162 @@
             <!-- Valores -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-currency-dollar me-2"></i>Valores
-                    </h5>
+                    <strong><i class="bi bi-currency-dollar me-2"></i>Valores</strong>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-3">
-                            <label for="{{ form.valor_mao_obra.id_for_label }}" class="form-label">
-                                <i class="bi bi-person-workspace me-1"></i>{{ form.valor_mao_obra.label }}
-                            </label>
+                            <label class="form-label">{{ form.valor_mao_obra.label }}</label>
                             {{ form.valor_mao_obra }}
                             {% for error in form.valor_mao_obra.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.valor_pecas.id_for_label }}" class="form-label">
-                                <i class="bi bi-gear me-1"></i>{{ form.valor_pecas.label }}
-                            </label>
+                            <label class="form-label">{{ form.valor_pecas.label }}</label>
                             {{ form.valor_pecas }}
                             {% for error in form.valor_pecas.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.valor_terceiros.id_for_label }}" class="form-label">
-                                <i class="bi bi-people me-1"></i>{{ form.valor_terceiros.label }}
-                            </label>
+                            <label class="form-label">{{ form.valor_terceiros.label }}</label>
                             {{ form.valor_terceiros }}
                             {% for error in form.valor_terceiros.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
                         <div class="col-md-3">
-                            <label for="{{ form.desconto.id_for_label }}" class="form-label">
-                                <i class="bi bi-percent me-1"></i>{{ form.desconto.label }}
-                            </label>
+                            <label class="form-label">{{ form.desconto.label }}</label>
                             {{ form.desconto }}
                             {% for error in form.desconto.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
-                        
-                        <div class="col-12">
-                            <div class="alert alert-info d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-calculator me-2"></i>Total da OS:</span>
-                                <strong class="fs-5" id="totalCalculado">R$ {{ ordem.total|floatformat:2 }}</strong>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Itens da OS -->
-            <div class="card mb-4">
+            <!-- Itens -->
+            <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-list-check me-2"></i>Itens e Serviços
-                    </h5>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFormsetRow()">
-                        <i class="bi bi-plus-circle me-1"></i>Adicionar Item
-                    </button>
+                    <strong><i class="bi bi-list-check me-2"></i>Itens / Serviços</strong>
+                    <small class="text-muted">Atualize quantidades ou valores e salve</small>
                 </div>
                 <div class="card-body">
-                    <div id="formset-container">
-                        {{ formset.management_form }}
-                        {% for form_item in formset %}
-                        <div class="formset-row border rounded p-3 mb-3">
+                    {{ formset.management_form }}
+                    {% if formset.non_form_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in formset.non_form_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% for form_item in formset %}
+                        <div class="border rounded p-3 mb-3">
                             {% for hidden in form_item.hidden_fields %}
                                 {{ hidden }}
                             {% endfor %}
-                            
-                            <div class="row g-2 align-items-end">
-                                <div class="col-md-4">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-5">
                                     <label class="form-label">Descrição</label>
                                     {{ form_item.descricao }}
+                                    {% for error in form_item.descricao.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label">Tipo</label>
                                     {{ form_item.tipo }}
+                                    {% for error in form_item.tipo.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label">Quantidade</label>
                                     {{ form_item.quantidade }}
+                                    {% for error in form_item.quantidade.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
                                 </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Valor unitário</label>
+                                    {{ form_item.valor_unitario }}
+                                    {% for error in form_item.valor_unitario.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% if formset.can_delete %}
+                                <div class="col-md-1 text-center">
+                                    <label class="form-label">Remover</label>
+                                    <div class="form-check d-flex justify-content-center">
+                                        {{ form_item.DELETE }}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p class="text-muted mb-0">Nenhum item cadastrado para esta OS.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a class="btn btn-outline-secondary" href="{% url 'core:detalhes_ordem_servico' ordem.id %}">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i> Salvar alterações
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <strong><i class="bi bi-clipboard-data me-2"></i>Resumo</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted">Número</dt>
+                        <dd class="col-7 mb-2">#{{ ordem.numero_os }}</dd>
+
+                        <dt class="col-5 text-muted">Status atual</dt>
+                        <dd class="col-7 mb-2">{{ ordem.get_status_display }}</dd>
+
+                        <dt class="col-5 text-muted">Prioridade</dt>
+                        <dd class="col-7 mb-2">{{ ordem.get_prioridade_display }}</dd>
+
+                        <dt class="col-5 text-muted">Aberta em</dt>
+                        <dd class="col-7 mb-2">{{ ordem.data_abertura|date:"d/m/Y H:i" }}</dd>
+
+                        {% if ordem.data_entrega %}
+                        <dt class="col-5 text-muted">Entregue em</dt>
+                        <dd class="col-7 mb-2">{{ ordem.data_entrega|date:"d/m/Y H:i" }}</dd>
+                        {% endif %}
+
+                        <dt class="col-5 text-muted">Total calculado</dt>
+                        <dd class="col-7 fw-bold">R$ {{ ordem.total|floatformat:2 }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <strong><i class="bi bi-lightning-charge me-2"></i>Ações rápidas</strong>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'core:detalhes_ordem_servico' ordem.id %}#timeline">
+                        <i class="bi bi-clock-history me-1"></i> Histórico de status
+                    </a>
+                    <a class="btn btn-outline-success btn-sm" href="{% url 'core:abrir_ordem_servico' %}?veiculo={{ ordem.veiculo.id }}">
+                        <i class="bi bi-plus-circle me-1"></i> Duplicar OS
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

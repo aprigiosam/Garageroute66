@@ -154,6 +154,26 @@ def cadastrar_veiculo(request):
 
 
 @login_required
+def editar_veiculo(request, veiculo_id):
+    veiculo = get_object_or_404(Veiculo, id=veiculo_id)
+
+    if request.method == 'POST':
+        form = VeiculoForm(request.POST, instance=veiculo, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(
+                request,
+                f"Veículo {veiculo.placa} atualizado com sucesso.",
+            )
+            return redirect(reverse('core:listar_veiculos'))
+    else:
+        form = VeiculoForm(instance=veiculo, user=request.user)
+
+    context = {'form': form, 'veiculo': veiculo}
+    return render(request, 'core/editar_veiculo.html', context)
+
+
+@login_required
 def listar_veiculos(request):
     veiculos = Veiculo.objects.select_related('cliente').filter(ativo=True).order_by('placa')
     
