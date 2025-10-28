@@ -8,13 +8,15 @@
 4. Baixe o pacote completo
 5. Extraia os ícones nesta pasta
 
+> **Logo atual**: o arquivo `static/img/logo-garageroute66.jpg` foi adicionado como referência visual e está sendo reutilizado temporariamente em todos os tamanhos `.jpg`. Gere versões otimizadas em PNG sempre que possível para melhorar a nitidez.
+
 ## Opção 2: Temporário (Para Teste)
 
 Use ícones placeholder até ter o logo oficial:
 
 ```bash
 # Criar ícones simples com ImageMagick
-convert -size 512x512 xc:#0d6efd -fill white -pointsize 200 -gravity center -annotate +0+0 "GR" icon-512x512.png
+convert -size 512x512 xc:#c1272d -fill white -pointsize 200 -gravity center -annotate +0+0 "GR" icon-512x512.png
 convert icon-512x512.png -resize 384x384 icon-384x384.png
 convert icon-512x512.png -resize 192x192 icon-192x192.png
 convert icon-512x512.png -resize 152x152 icon-152x152.png
@@ -47,4 +49,4 @@ convert seu-logo.png -resize 512x512 -background none -gravity center -extent 51
 
 ## Nota
 
-Por enquanto, o PWA funcionará sem ícones, mas para instalação completa eles são necessários.
+Enquanto os ícones oficiais não são gerados, o PWA usará as cópias `.jpg` do logo em todos os tamanhos. Substitua-os por PNG dimensionados corretamente assim que tiver as versões definitivas.

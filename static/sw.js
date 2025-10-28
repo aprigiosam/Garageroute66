@@ -96,13 +96,13 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: event.data ? event.data.text() : 'Você tem uma nova notificação!',
-    icon: '/static/icons/icon-192x192.png',
-    badge: '/static/icons/icon-96x96.png',
+    icon: '/static/icons/icon-192x192.jpg',
+    badge: '/static/icons/icon-96x96.jpg',
     vibrate: [200, 100, 200],
     tag: 'garageroute-notification',
     requireInteraction: false,
     actions: [
-      { action: 'open', title: 'Abrir', icon: '/static/icons/icon-96x96.png' },
+      { action: 'open', title: 'Abrir', icon: '/static/icons/icon-96x96.jpg' },
       { action: 'close', title: 'Fechar' }
     ]
   };
