@@ -4,10 +4,24 @@ Utilitários para cache otimizado do GarageRoute66
 from django.core.cache import cache
 from django.db.models import Count, Sum
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 import hashlib
 import json
+import calendar
+
+
+def _start_of_month(aware_dt):
+    """Retorna o início do mês para um datetime consciente."""
+    return aware_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _add_months(aware_dt, months):
+    """Adiciona meses a um datetime consciente preservando o fuso."""
+    year = aware_dt.year + (aware_dt.month - 1 + months) // 12
+    month = (aware_dt.month - 1 + months) % 12 + 1
+    day = min(aware_dt.day, calendar.monthrange(year, month)[1])
+    return aware_dt.replace(year=year, month=month, day=day)
 
 
 def cache_key_generator(*args, **kwargs):
@@ -49,8 +63,8 @@ class DashboardCache:
         if stats is None:
             from .models import Cliente, Veiculo, OrdemServico
 
-            hoje = timezone.now().date()
-            mes_atual = hoje.replace(day=1)
+            agora = timezone.localtime()
+            mes_inicio = _start_of_month(agora)
 
             stats = {
                 'total_clientes': Cliente.objects.filter(ativo=True).count(),
@@ -58,9 +72,9 @@ class DashboardCache:
                 'ordens_abertas': OrdemServico.objects.filter(
                     status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
                 ).count(),
-                'ordens_mes': OrdemServico.objects.filter(data_abertura__gte=mes_atual).count(),
+                'ordens_mes': OrdemServico.objects.filter(data_abertura__gte=mes_inicio).count(),
                 'faturamento_mes': OrdemServico.objects.filter(
-                    data_abertura__gte=mes_atual,
+                    data_abertura__gte=mes_inicio,
                     status=OrdemServico.Status.ENTREGUE
                 ).aggregate(total=Sum('total'))['total'] or 0,
             }
@@ -83,21 +97,22 @@ class DashboardCache:
         if dados is None:
             from .models import OrdemServico
 
-            hoje = timezone.now().date()
+            agora = timezone.localtime()
+            inicio_mes_atual = _start_of_month(agora)
             dados = []
 
-            for i in range(meses):
-                mes = (hoje.replace(day=1) - timedelta(days=30*i)).replace(day=1)
-                proximo_mes = (mes + timedelta(days=32)).replace(day=1)
+            for offset in range(meses):
+                periodo_inicio = _start_of_month(_add_months(inicio_mes_atual, -offset))
+                periodo_fim = _start_of_month(_add_months(inicio_mes_atual, -offset + 1))
 
                 valor = OrdemServico.objects.filter(
-                    data_abertura__gte=mes,
-                    data_abertura__lt=proximo_mes,
+                    data_abertura__gte=periodo_inicio,
+                    data_abertura__lt=periodo_fim,
                     status=OrdemServico.Status.ENTREGUE
                 ).aggregate(total=Sum('total'))['total'] or 0
 
                 dados.append({
-                    'mes': mes.strftime('%b/%Y'),
+                    'mes': periodo_inicio.strftime('%b/%Y'),
                     'valor': float(valor)
                 })
 
