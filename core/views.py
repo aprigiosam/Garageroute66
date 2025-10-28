@@ -26,6 +26,7 @@ from .backup_utils import create_db_backup
 from django.core.management.base import CommandError
 
 
+@login_required
 @cache_page_if_not_staff(timeout=300)
 def dashboard(request):
     """Dashboard principal com estatísticas otimizadas"""

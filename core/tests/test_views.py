@@ -25,10 +25,12 @@ class DashboardViewTest(TestCase):
     def test_dashboard_acesso_publico(self):
         """Testa acesso público ao dashboard"""
         response = self.client.get(reverse('core:dashboard'))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('core:login'), response.url)
 
     def test_dashboard_conteudo(self):
         """Testa conteúdo básico do dashboard"""
+        self.client.login(username='testuser', password='testpass123')
         # Criar alguns dados de teste
         cliente = Cliente.objects.create(
             nome='João Silva',
