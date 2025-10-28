@@ -12,7 +12,7 @@ jobs:
     env:
       PYTHON_VERSION: "3.12"
       SECRET_KEY: "ci-secret-key"
-      DEBUG: "False"
+      DEBUG: "True"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
       COMPANY_NAME: "Garage Route 66 CI"
       DJANGO_SETTINGS_MODULE: "oficina.settings"
