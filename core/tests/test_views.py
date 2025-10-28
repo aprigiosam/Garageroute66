@@ -6,6 +6,7 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.auth import get_user
 
 from core.models import Cliente, Veiculo, OrdemServico
 
@@ -60,6 +61,47 @@ class DashboardViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'stats')
         self.assertContains(response, 'ordens_urgentes')
+
+
+class AutenticacaoViewsTest(TestCase):
+    """Testes para a tela de login."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='usuario_login',
+            email='login@test.com',
+            password='SenhaForte123'
+        )
+
+    def test_login_get(self):
+        response = self.client.get(reverse('core:login'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Acesse o painel')
+
+    def test_login_post_invalido(self):
+        response = self.client.post(reverse('core:login'), {
+            'username': 'usuario_login',
+            'password': 'errada'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Usuário ou senha inválidos')
+
+    def test_login_post_valido(self):
+        response = self.client.post(reverse('core:login'), {
+            'username': 'usuario_login',
+            'password': 'SenhaForte123'
+        })
+        self.assertRedirects(response, reverse('core:dashboard'))
+        user = get_user(self.client)
+        self.assertTrue(user.is_authenticated)
+
+    def test_logout(self):
+        self.client.login(username='usuario_login', password='SenhaForte123')
+        response = self.client.get(reverse('core:logout'))
+        self.assertRedirects(response, reverse('core:login'))
+        user = get_user(self.client)
+        self.assertFalse(user.is_authenticated)
 
 
 class ClienteViewsTest(TestCase):

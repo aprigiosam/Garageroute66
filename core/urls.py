@@ -6,6 +6,9 @@ from . import views_pecas
 app_name = 'core'
 
 urlpatterns = [
+    path('login/', views.login_usuario, name='login'),
+    path('logout/', views.logout_usuario, name='logout'),
+
     path('', views.dashboard, name='dashboard'),
 
     path('clientes/', views.listar_clientes, name='listar_clientes'),

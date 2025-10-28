@@ -1,5 +1,8 @@
 from django.contrib import messages
+from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.views.decorators.csrf import csrf_protect
 from django.core.paginator import Paginator
 from django.db.models import Q, Sum, Count, Avg, Prefetch
 from django.http import JsonResponse, HttpResponse
@@ -115,6 +118,37 @@ def listar_clientes(request):
         'busca': busca,
     }
     return render(request, 'core/listar_clientes.html', context)
+
+
+@csrf_protect
+def login_usuario(request):
+    if request.user.is_authenticated:
+        return redirect(reverse('core:dashboard'))
+
+    form = AuthenticationForm(request, data=request.POST or None)
+    for field in form.fields.values():
+        css = field.widget.attrs.get('class', '')
+        field.widget.attrs['class'] = f"{css} form-control".strip()
+
+    if request.method == 'POST':
+        if form.is_valid():
+            user = form.get_user()
+            auth_login(request, user)
+            messages.success(request, f"Bem-vindo, {user.get_full_name() or user.username}!")
+            next_url = request.POST.get('next') or request.GET.get('next') or reverse('core:dashboard')
+            return redirect(next_url)
+        else:
+            messages.error(request, "Usuário ou senha inválidos.")
+
+    context = {'form': form, 'next': request.GET.get('next', '')}
+    return render(request, 'core/login.html', context)
+
+
+@login_required
+def logout_usuario(request):
+    auth_logout(request)
+    messages.info(request, "Sessão encerrada com sucesso.")
+    return redirect(reverse('core:login'))
 
 
 @login_required

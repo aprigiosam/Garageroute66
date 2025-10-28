@@ -169,9 +169,9 @@ MESSAGE_TAGS = {
 }
 
 # Login/Logout URLs
-LOGIN_URL = '/admin/login/'
+LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/admin/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 # Email - Console Backend (apenas para desenvolvimento)
 # Configure SMTP real depois se precisar
