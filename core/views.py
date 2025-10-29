@@ -634,10 +634,16 @@ def mecanico_minhas_ordens(request):
         }
         for config in status_config
     ]
+    execucao_statuses = [
+        OrdemServico.Status.APROVADA,
+        OrdemServico.Status.EM_EXECUCAO,
+        OrdemServico.Status.AGUARDANDO_PECA,
+    ]
     return render(request, 'core/mecanico_minhas_os.html', {
         'ordens': ordens,
         'status_summary': status_summary,
         'total_ordens': len(ordens),
+        'execucao_statuses': execucao_statuses,
     })
 
 

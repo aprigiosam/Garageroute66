@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <span class="meta-value">R$ {{ ordem.orcamento_total_estimado|floatformat:2 }}</span>
                         </div>
                         {% endif %}
-                        {% if ordem.status in ['APROVADA', 'EM_ANDAMENTO', 'AGUARDANDO_PECA'] %}
+                        {% if ordem.status in execucao_statuses %}
                         <div>
                             <span class="meta-label">Saldo pendente</span>
                             <span class="meta-value">
@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         {% endif %}
                     </div>
 
-                    {% if ordem.status in ['APROVADA', 'EM_ANDAMENTO', 'AGUARDANDO_PECA'] %}
+                    {% if ordem.status in execucao_statuses %}
                     {% with percentual=ordem.percentual_pago saldo=ordem.saldo_pendente %}
                     <div class="mechanic-card-progress">
                         <div class="d-flex justify-content-between small text-muted mb-1">
