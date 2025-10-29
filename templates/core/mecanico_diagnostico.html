@@ -7,8 +7,108 @@
 <li class="breadcrumb-item active">Diagnóstico</li>
 {% endblock %}
 
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .mechanic-submit-bar {
+        background: rgba(13, 13, 13, 0.92);
+        border-top: 1px solid rgba(255,255,255,0.08);
+        padding: 1rem;
+        position: sticky;
+        bottom: 0;
+        z-index: 60;
+        box-shadow: 0 -6px 24px rgba(0,0,0,0.45);
+        backdrop-filter: blur(6px);
+    }
+    @media (min-width: 768px) {
+        .mechanic-submit-bar {
+            position: static;
+            background: transparent;
+            border-top: none;
+            padding: 0;
+            box-shadow: none;
+        }
+    }
+    .accordion-button:focus {
+        box-shadow: none;
+    }
+    .accordion-item {
+        border-radius: 14px !important;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(18,18,18,0.95);
+    }
+    .accordion-button {
+        background: transparent;
+        color: inherit;
+        font-weight: 600;
+        gap: .5rem;
+    }
+    .accordion-body {
+        background: rgba(0,0,0,0.12);
+    }
+    .mechanic-quick-info .badge {
+        font-size: 0.75rem;
+    }
+    .mechanic-stepper {
+        display: flex;
+        gap: .5rem;
+        overflow-x: auto;
+        padding-bottom: .25rem;
+        margin-bottom: 1rem;
+        scroll-snap-type: x proximity;
+    }
+    .mechanic-stepper::-webkit-scrollbar {
+        display: none;
+    }
+    .mechanic-stepper .mechanic-step {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.85);
+        border-radius: 12px;
+        padding: .6rem .9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .85rem;
+        white-space: nowrap;
+        transition: all .2s ease;
+        scroll-snap-align: center;
+    }
+    .mechanic-stepper .mechanic-step i {
+        font-size: 1rem;
+    }
+    .mechanic-stepper .mechanic-step.active {
+        border-color: rgba(193, 39, 45, 0.6);
+        background: rgba(193, 39, 45, 0.18);
+        color: #fff;
+        box-shadow: 0 10px 22px rgba(193, 39, 45, 0.18);
+    }
+    .formset-item {
+        background: rgba(0,0,0,0.25);
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 14px;
+    }
+    .formset-item + .formset-item {
+        margin-top: 1rem;
+    }
+    @media (max-width: 575.98px) {
+        .accordion-button {
+            font-size: 1rem;
+        }
+        #add-item,
+        #add-foto {
+            width: 100%;
+        }
+        .mechanic-submit-bar {
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0));
+        }
+    }
+</style>
+{% endblock %}
+
 {% block page_header %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h1 class="h3 mb-0"><i class="bi bi-clipboard-plus text-primary me-2"></i>Diagnóstico #{{ ordem.numero_os }}</h1>
         <p class="text-muted mb-0">{{ ordem.veiculo.placa }} · {{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</p>
@@ -20,184 +120,251 @@
 {% block content %}
 <form method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
+
+    {% if form.non_field_errors or formset.non_form_errors or fotos_formset.non_form_errors %}
+    <div class="alert alert-danger mb-4">
+        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+        {% for error in formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+        {% for error in fotos_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mechanic-stepper" role="tablist" aria-label="Etapas do diagnóstico">
+        <button type="button" class="mechanic-step active" data-step-target="#collapseResumo" aria-controls="collapseResumo" aria-selected="true">
+            <i class="bi bi-clipboard-check"></i>
+            <span>Resumo</span>
+        </button>
+        <button type="button" class="mechanic-step" data-step-target="#collapseDiag" aria-controls="collapseDiag" aria-selected="false">
+            <i class="bi bi-search"></i>
+            <span>Diagnóstico</span>
+        </button>
+        <button type="button" class="mechanic-step" data-step-target="#collapseCustos" aria-controls="collapseCustos" aria-selected="false">
+            <i class="bi bi-cash-coin"></i>
+            <span>Custos</span>
+        </button>
+        <button type="button" class="mechanic-step" data-step-target="#collapseItens" aria-controls="collapseItens" aria-selected="false">
+            <i class="bi bi-list-check"></i>
+            <span>Itens</span>
+        </button>
+        <button type="button" class="mechanic-step" data-step-target="#collapseFotos" aria-controls="collapseFotos" aria-selected="false">
+            <i class="bi bi-images"></i>
+            <span>Fotos</span>
+        </button>
+    </div>
+
     <div class="row g-4">
         <div class="col-lg-8">
-            {% if form.non_field_errors or formset.non_form_errors or fotos_formset.non_form_errors %}
-            <div class="alert alert-danger">
-                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
-                {% for error in formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
-                {% for error in fotos_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
-            </div>
-            {% endif %}
-
-            <div class="card mb-4">
-                <div class="card-header"><strong>Resumo do atendimento</strong></div>
-                <div class="card-body">
-                    <p><strong>Problema relatado:</strong> {{ ordem.descricao_problema }}</p>
-                    <p class="mb-0"><strong>Cliente:</strong> {{ ordem.cliente.nome }} · {{ ordem.cliente.telefone }}</p>
-                </div>
-            </div>
-
-            <div class="card mb-4">
-                <div class="card-header"><strong>Diagnóstico</strong></div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">{{ form.diagnostico.label }}</label>
-                        {{ form.diagnostico }}
-                        {% for error in form.diagnostico.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">{{ form.solucao.label }}</label>
-                        {{ form.solucao }}
-                        {% for error in form.solucao.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">{{ form.observacoes_internas.label }}</label>
-                        {{ form.observacoes_internas }}
-                        {% for error in form.observacoes_internas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <div class="card mb-4">
-                <div class="card-header"><strong>Custo estimado</strong></div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label">{{ form.valor_mao_obra.label }}</label>
-                            {{ form.valor_mao_obra }}
-                            {% for error in form.valor_mao_obra.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">{{ form.valor_pecas.label }}</label>
-                            {{ form.valor_pecas }}
-                            {% for error in form.valor_pecas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">{{ form.valor_terceiros.label }}</label>
-                            {{ form.valor_terceiros }}
-                            {% for error in form.valor_terceiros.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">{{ form.desconto.label }}</label>
-                            {{ form.desconto }}
-                            {% for error in form.desconto.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            <div class="accordion" id="diagnosticoAccordion">
+                <div class="accordion-item mb-3">
+                    <h2 class="accordion-header" id="headingResumo">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseResumo" aria-expanded="true" aria-controls="collapseResumo">
+                            <i class="bi bi-journal-medical"></i>Resumo do atendimento
+                        </button>
+                    </h2>
+                    <div id="collapseResumo" class="accordion-collapse collapse show" aria-labelledby="headingResumo" data-bs-parent="#diagnosticoAccordion">
+                        <div class="accordion-body">
+                            <p class="mb-2"><strong>Problema relatado:</strong> {{ ordem.descricao_problema }}</p>
+                            <p class="mb-0"><strong>Cliente:</strong> {{ ordem.cliente.nome }} · {{ ordem.cliente.telefone }}</p>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>Itens sugeridos</strong>
-                    <button class="btn btn-sm btn-outline-primary" type="button" id="add-item"><i class="bi bi-plus-circle me-1"></i>Novo item</button>
+                <div class="accordion-item mb-3">
+                    <h2 class="accordion-header" id="headingDiag">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDiag" aria-expanded="false" aria-controls="collapseDiag">
+                            <i class="bi bi-search"></i>Diagnóstico e laudo
+                        </button>
+                    </h2>
+                    <div id="collapseDiag" class="accordion-collapse collapse" aria-labelledby="headingDiag" data-bs-parent="#diagnosticoAccordion">
+                        <div class="accordion-body">
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.diagnostico.label }}</label>
+                                {{ form.diagnostico }}
+                                {% for error in form.diagnostico.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ form.solucao.label }}</label>
+                                {{ form.solucao }}
+                                {% for error in form.solucao.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label">{{ form.observacoes_internas.label }}</label>
+                                {{ form.observacoes_internas }}
+                                {% for error in form.observacoes_internas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    {{ formset.management_form }}
-                    <div id="itens-container" data-prefix="{{ formset.prefix }}">
-                        {% for item_form in formset %}
-                            <div class="border rounded p-3 mb-3 formset-item">
-                                {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
-                                <div class="row g-3 align-items-end">
-                                    {% for field in item_form.visible_fields %}
-                                        <div class="col-md-6 col-lg-3">
-                                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                                            {{ field }}
-                                            {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                        </div>
-                                    {% endfor %}
-                                    {% if item_form.can_delete %}
-                                        <div class="col-12">
-                                            <div class="form-check">
-                                                {{ item_form.DELETE }}
-                                                <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">Remover item</label>
-                                            </div>
-                                        </div>
-                                    {% endif %}
+
+                <div class="accordion-item mb-3">
+                    <h2 class="accordion-header" id="headingCustos">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustos" aria-expanded="false" aria-controls="collapseCustos">
+                            <i class="bi bi-cash-coin"></i>Custos estimados
+                        </button>
+                    </h2>
+                    <div id="collapseCustos" class="accordion-collapse collapse" aria-labelledby="headingCustos" data-bs-parent="#diagnosticoAccordion">
+                        <div class="accordion-body">
+                            <div class="row g-3">
+                                <div class="col-12 col-sm-6 col-xl-3">
+                                    <label class="form-label">{{ form.valor_mao_obra.label }}</label>
+                                    {{ form.valor_mao_obra }}
+                                    {% for error in form.valor_mao_obra.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-12 col-sm-6 col-xl-3">
+                                    <label class="form-label">{{ form.valor_pecas.label }}</label>
+                                    {{ form.valor_pecas }}
+                                    {% for error in form.valor_pecas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-12 col-sm-6 col-xl-3">
+                                    <label class="form-label">{{ form.valor_terceiros.label }}</label>
+                                    {{ form.valor_terceiros }}
+                                    {% for error in form.valor_terceiros.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-12 col-sm-6 col-xl-3">
+                                    <label class="form-label">{{ form.desconto.label }}</label>
+                                    {{ form.desconto }}
+                                    {% for error in form.desconto.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                 </div>
                             </div>
-                        {% empty %}
-                            <p class="text-muted mb-0">Adicione itens e serviços sugeridos.</p>
-                        {% endfor %}
+                        </div>
                     </div>
-                    <template id="item-empty-template">
-                        <div class="border rounded p-3 mb-3 formset-item">
-                            {% for hidden in item_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
-                            <div class="row g-3 align-items-end">
-                                {% for field in item_empty_form.visible_fields %}
-                                    <div class="col-md-6 col-lg-3">
-                                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                                        {{ field }}
+                </div>
+
+                <div class="accordion-item mb-3">
+                    <h2 class="accordion-header" id="headingItens">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItens" aria-expanded="false" aria-controls="collapseItens">
+                            <i class="bi bi-list-check"></i>Itens sugeridos
+                        </button>
+                    </h2>
+                    <div id="collapseItens" class="accordion-collapse collapse" aria-labelledby="headingItens" data-bs-parent="#diagnosticoAccordion">
+                        <div class="accordion-body">
+                            <div class="d-flex justify-content-end mb-3">
+                                <button class="btn btn-sm btn-outline-primary" type="button" id="add-item"><i class="bi bi-plus-circle me-1"></i>Novo item</button>
+                            </div>
+                            {{ formset.management_form }}
+                            <div id="itens-container" data-prefix="{{ formset.prefix }}">
+                                {% for item_form in formset %}
+                                    <div class="border rounded p-3 mb-3 formset-item">
+                                        {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                        <div class="row g-3 align-items-end">
+                                            {% for field in item_form.visible_fields %}
+                                            <div class="col-12 col-sm-6 col-xl-3">
+                                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                                {{ field }}
+                                                {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                            </div>
+                                            {% endfor %}
+                                            {% if item_form.can_delete %}
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    {{ item_form.DELETE }}
+                                                    <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">Remover item</label>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                        </div>
                                     </div>
+                                {% empty %}
+                                    <p class="text-muted mb-0">Adicione itens e serviços sugeridos.</p>
                                 {% endfor %}
                             </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>Fotos de diagnóstico</strong>
-                    <button class="btn btn-sm btn-outline-primary" type="button" id="add-foto"><i class="bi bi-image me-1"></i>Adicionar foto</button>
-                </div>
-                <div class="card-body">
-                    {{ fotos_formset.management_form }}
-                    <div id="fotos-container" class="row g-3" data-prefix="{{ fotos_formset.prefix }}">
-                        {% for foto_form in fotos_formset %}
-                            <div class="col-md-6 formset-item">
-                                <div class="border rounded p-3 h-100">
-                                    {% for hidden in foto_form.hidden_fields %}{{ hidden }}{% endfor %}
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ foto_form.imagem.label }}</label>
-                                        {{ foto_form.imagem }}
-                                        {% for error in foto_form.imagem.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label">{{ foto_form.legenda.label }}</label>
-                                        {{ foto_form.legenda }}
-                                        {% for error in foto_form.legenda.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            <template id="item-empty-template">
+                                <div class="border rounded p-3 mb-3 formset-item">
+                                    {% for hidden in item_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                    <div class="row g-3 align-items-end">
+                                        {% for field in item_empty_form.visible_fields %}
+                                        <div class="col-12 col-sm-6 col-xl-3">
+                                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                            {{ field }}
+                                        </div>
+                                        {% endfor %}
                                     </div>
                                 </div>
-                            </div>
-                        {% empty %}
-                            <p class="text-muted mb-0">Sem fotos anexadas.</p>
-                        {% endfor %}
+                            </template>
+                        </div>
                     </div>
-                    <template id="foto-empty-template">
-                        <div class="col-md-6 formset-item">
-                            <div class="border rounded p-3 h-100">
-                                {% for hidden in foto_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
-                                <div class="mb-3">
-                                    <label class="form-label" for="{{ foto_empty_form.imagem.id_for_label }}">Imagem</label>
-                                    {{ foto_empty_form.imagem }}
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label" for="{{ foto_empty_form.legenda.id_for_label }}">Legenda</label>
-                                    {{ foto_empty_form.legenda }}
-                                </div>
-                            </div>
-                        </div>
-                    </template>
                 </div>
-            </div>
 
-            <div class="d-flex justify-content-end gap-2">
-                <a class="btn btn-outline-secondary" href="{% url 'core:mecanico_minhas_ordens' %}">Cancelar</a>
-                <button class="btn btn-primary" type="submit"><i class="bi bi-send me-1"></i>Enviar diagnóstico</button>
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingFotos">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFotos" aria-expanded="false" aria-controls="collapseFotos">
+                            <i class="bi bi-images"></i>Fotos de diagnóstico
+                        </button>
+                    </h2>
+                    <div id="collapseFotos" class="accordion-collapse collapse" aria-labelledby="headingFotos" data-bs-parent="#diagnosticoAccordion">
+                        <div class="accordion-body">
+                            <div class="d-flex justify-content-end mb-3">
+                                <button class="btn btn-sm btn-outline-primary" type="button" id="add-foto"><i class="bi bi-image me-1"></i>Adicionar foto</button>
+                            </div>
+                            {{ fotos_formset.management_form }}
+                            <div id="fotos-container" class="row g-3" data-prefix="{{ fotos_formset.prefix }}">
+                                {% for foto_form in fotos_formset %}
+                                <div class="col-12 col-md-6 formset-item">
+                                    <div class="border rounded p-3 h-100">
+                                        {% for hidden in foto_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                        <div class="mb-3">
+                                            <label class="form-label">{{ foto_form.imagem.label }}</label>
+                                            {{ foto_form.imagem }}
+                                            {% for error in foto_form.imagem.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">{{ foto_form.legenda.label }}</label>
+                                            {{ foto_form.legenda }}
+                                            {% for error in foto_form.legenda.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <p class="text-muted mb-0">Sem fotos anexadas.</p>
+                                {% endfor %}
+                            </div>
+                            <template id="foto-empty-template">
+                                <div class="col-12 col-md-6 formset-item">
+                                    <div class="border rounded p-3 h-100">
+                                        {% for hidden in foto_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                        <div class="mb-3">
+                                            <label class="form-label" for="{{ foto_empty_form.imagem.id_for_label }}">Imagem</label>
+                                            {{ foto_empty_form.imagem }}
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label" for="{{ foto_empty_form.legenda.id_for_label }}">Legenda</label>
+                                            {{ foto_empty_form.legenda }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="col-lg-4">
-            <div class="card mb-4">
+            <div class="card mechanic-summary-card mb-4">
                 <div class="card-header"><strong><i class="bi bi-info-square me-2"></i>Informações rápidas</strong></div>
-                <div class="card-body small">
-                    <p class="mb-1"><strong>Status atual:</strong> {{ ordem.get_status_display }}</p>
-                    <p class="mb-1"><strong>Entrada:</strong> {{ ordem.data_abertura|date:"d/m/Y H:i" }}</p>
-                    <p class="mb-0 text-muted">Após enviar o diagnóstico, a recepção revisará e enviará ao cliente.</p>
+                <div class="card-body mechanic-quick-info small">
+                    <p class="mb-2"><strong>Status:</strong> {{ ordem.get_status_display }}</p>
+                    <p class="mb-2"><strong>Entrada:</strong> {{ ordem.data_abertura|date:"d/m/Y H:i" }}</p>
+                    <p class="mb-2"><strong>Prioridade:</strong> {{ ordem.get_prioridade_display }}</p>
+                    <p class="mb-0 text-muted">Envie o diagnóstico para que a recepção trate com o cliente.</p>
+                </div>
+            </div>
+            <div class="card mechanic-summary-card">
+                <div class="card-header"><strong><i class="bi bi-lightbulb me-2"></i>Dicas rápidas</strong></div>
+                <div class="card-body small text-muted">
+                    <ul class="mb-0 ps-3">
+                        <li>Inclua observações importantes e evidências.</li>
+                        <li>Descreva a solução sugerida com clareza.</li>
+                        <li>Use fotos para registrar qualquer dano relevante.</li>
+                    </ul>
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="mechanic-submit-bar" class="mechanic-submit-bar d-flex flex-column flex-md-row justify-content-end gap-2 mt-4">
+        <a class="btn btn-outline-secondary" href="{% url 'core:mecanico_minhas_ordens' %}">Cancelar</a>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-send me-1"></i>Enviar diagnóstico</button>
     </div>
 </form>
 {% endblock %}
@@ -224,26 +391,64 @@
             wrapper.innerHTML = templateElement.innerHTML.trim();
             const newElement = wrapper.firstElementChild;
 
-            const currentIndex = parseInt(totalFormsInput.value, 10);
-            const regex = new RegExp(`${prefix}-__prefix__`, 'g');
-            newElement.innerHTML = newElement.innerHTML.replace(regex, `${prefix}-${currentIndex}`);
-
-            newElement.querySelectorAll('input, textarea, select').forEach(el => {
-                if (el.type === 'checkbox') {
-                    el.checked = false;
-                } else if (el.type !== 'file') {
-                    el.value = '';
-                }
-            });
-
+            const currentIndex = container.querySelectorAll('.formset-item').length;
+            newElement.innerHTML = newElement.innerHTML.replace(/__prefix__/g, currentIndex);
             container.appendChild(newElement);
             totalFormsInput.value = currentIndex + 1;
         });
     }
 
+    function initStepper() {
+        if (typeof bootstrap === 'undefined') {
+            return;
+        }
+        const stepButtons = document.querySelectorAll('[data-step-target]');
+        if (!stepButtons.length) {
+            return;
+        }
+        const collapses = document.querySelectorAll('#diagnosticoAccordion .accordion-collapse');
+
+        const setActive = (selector) => {
+            stepButtons.forEach(button => {
+                const matches = button.getAttribute('data-step-target') === selector;
+                button.classList.toggle('active', matches);
+                button.setAttribute('aria-selected', matches ? 'true' : 'false');
+            });
+        };
+
+        stepButtons.forEach(button => {
+            button.setAttribute('aria-selected', button.classList.contains('active') ? 'true' : 'false');
+            button.addEventListener('click', () => {
+                const selector = button.getAttribute('data-step-target');
+                if (!selector) {
+                    return;
+                }
+                const target = document.querySelector(selector);
+                if (!target) {
+                    return;
+                }
+                const instance = bootstrap.Collapse.getOrCreateInstance(target, { toggle: false });
+                instance.show();
+            });
+        });
+
+        collapses.forEach(collapse => {
+            collapse.addEventListener('shown.bs.collapse', () => {
+                const selector = `#${collapse.id}`;
+                setActive(selector);
+            });
+        });
+
+        const initiallyOpen = document.querySelector('#diagnosticoAccordion .accordion-collapse.show');
+        if (initiallyOpen) {
+            setActive(`#${initiallyOpen.id}`);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initDynamicFormset('add-item', 'itens-container');
         initDynamicFormset('add-foto', 'fotos-container');
+        initStepper();
     });
 </script>
 {% endblock %}

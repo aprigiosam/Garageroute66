@@ -1,3 +1,5 @@
+from collections import Counter
+
 from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required, permission_required
@@ -572,7 +574,7 @@ def atualizar_requisicao_peca(request, ordem_id, requisicao_id):
 
 @login_required
 def mecanico_minhas_ordens(request):
-    ordens = OrdemServico.objects.select_related(
+    ordens_queryset = OrdemServico.objects.select_related(
         'veiculo__cliente', 'responsavel_tecnico'
     ).prefetch_related('itens', 'fotos').filter(
         responsavel_tecnico=request.user,
@@ -585,9 +587,57 @@ def mecanico_minhas_ordens(request):
             OrdemServico.Status.AGUARDANDO_PECA,
         ]
     ).order_by('status', '-prioridade', '-data_abertura')
-
+    ordens = list(ordens_queryset)
+    status_counts = Counter(ordem.status for ordem in ordens)
+    status_config = [
+        {
+            'code': OrdemServico.Status.DIAGNOSTICO,
+            'label': 'Diagnóstico',
+            'icon': 'bi-clipboard-pulse',
+            'variant': 'diagnostico',
+        },
+        {
+            'code': OrdemServico.Status.ORCAMENTO,
+            'label': 'Orçamento interno',
+            'icon': 'bi-calculator',
+            'variant': 'orcamento',
+        },
+        {
+            'code': OrdemServico.Status.ORCAMENTO_ENVIADO,
+            'label': 'Orçamento enviado',
+            'icon': 'bi-send-check',
+            'variant': 'orcamento-enviado',
+        },
+        {
+            'code': OrdemServico.Status.APROVADA,
+            'label': 'Aprovadas',
+            'icon': 'bi-hand-thumbs-up',
+            'variant': 'aprovada',
+        },
+        {
+            'code': OrdemServico.Status.EM_EXECUCAO,
+            'label': 'Em execução',
+            'icon': 'bi-lightning-charge',
+            'variant': 'execucao',
+        },
+        {
+            'code': OrdemServico.Status.AGUARDANDO_PECA,
+            'label': 'Aguardando peças',
+            'icon': 'bi-box-seam',
+            'variant': 'peca',
+        },
+    ]
+    status_summary = [
+        {
+            **config,
+            'count': status_counts.get(config['code'], 0)
+        }
+        for config in status_config
+    ]
     return render(request, 'core/mecanico_minhas_os.html', {
         'ordens': ordens,
+        'status_summary': status_summary,
+        'total_ordens': len(ordens),
     })
 
 
