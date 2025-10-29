@@ -43,17 +43,23 @@
                                 Aguardando recepção enviar orçamento ao cliente.
                             </div>
                         {% elif ordem.status == 'APROVADA' %}
-                            <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="acao" value="iniciar_execucao">
-                                <button class="btn btn-outline-success btn-sm" type="submit"><i class="bi bi-play-fill me-1"></i>Iniciar execução</button>
-                            </form>
-                            <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="acao" value="aguardar_peca">
-                                <button class="btn btn-outline-warning btn-sm" type="submit"><i class="bi bi-box-seam me-1"></i>Aguardando peça</button>
-                            </form>
-                            <small class="text-muted">Escolha iniciar o serviço ou aguardar peças.</small>
+                            {% if ordem.sinal_atendido %}
+                                <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="acao" value="iniciar_execucao">
+                                    <button class="btn btn-outline-success btn-sm" type="submit"><i class="bi bi-play-fill me-1"></i>Iniciar execução</button>
+                                </form>
+                                <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="acao" value="aguardar_peca">
+                                    <button class="btn btn-outline-warning btn-sm" type="submit"><i class="bi bi-box-seam me-1"></i>Aguardando peça</button>
+                                </form>
+                                <small class="text-muted">Escolha iniciar o serviço ou aguardar peças.</small>
+                            {% else %}
+                                <div class="alert alert-warning small mb-0">
+                                    A recepção ainda não confirmou o sinal mínimo de R$ {{ ordem.valor_minimo_sinal|floatformat:2 }} (recebido: R$ {{ ordem.total_pago|floatformat:2 }}).
+                                </div>
+                            {% endif %}
                         {% elif ordem.status == 'EM_EXECUCAO' %}
                             <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
                                 {% csrf_token %}

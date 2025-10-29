@@ -313,10 +313,24 @@
                     <span>Total pago:</span>
                     <strong class="{% if saldo_pendente == 0 %}text-success{% else %}text-warning{% endif %}">R$ {{ total_pago|floatformat:2 }}</strong>
                 </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Sinal mínimo ({{ deposit_ratio_percent|floatformat:0 }}%)</span>
+                    <strong>R$ {{ valor_minimo_sinal|floatformat:2 }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Percentual pago:</span>
+                    <strong class="{% if sinal_atendido %}text-success{% else %}text-warning{% endif %}">{{ percentual_pago|floatformat:2 }}%</strong>
+                </div>
                 <div class="d-flex justify-content-between mb-3">
                     <span>Saldo pendente:</span>
                     <strong class="{% if saldo_pendente == 0 %}text-success{% else %}text-danger{% endif %}">R$ {{ saldo_pendente|floatformat:2 }}</strong>
                 </div>
+
+                {% if not sinal_atendido %}
+                <div class="alert alert-warning small" role="alert">
+                    Sinal mínimo de R$ {{ valor_minimo_sinal|floatformat:2 }} ainda não foi confirmado.
+                </div>
+                {% endif %}
 
                 {% if saldo_pendente > 0 %}
                 <div class="alert alert-warning small" role="alert">

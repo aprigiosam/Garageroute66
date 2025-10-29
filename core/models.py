@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db.models import Count, Sum, Prefetch
+from django.conf import settings
 
 
 class TimestampedModel(models.Model):
@@ -337,7 +338,7 @@ class OrdemServico(TimestampedModel):
 
     @property
     def saldo_pendente(self):
-        total_base = self.orcamento_total_aprovado or self.total
+        total_base = self.orcamento_total_aprovado or self.orcamento_total_estimado or self.total
         return max(Decimal('0.00'), total_base - (self.total_pago or Decimal('0.00')))
 
     @property
@@ -349,6 +350,53 @@ class OrdemServico(TimestampedModel):
         return self.requisicoes_pecas.filter(
             status__in=['SOLICITADO', 'EM_COMPRA', 'AGUARDANDO_ENTREGA']
         ).exists()
+
+    @property
+    def valor_minimo_sinal(self):
+        ratio = Decimal(str(getattr(settings, 'GARAGE_CONFIG', {}).get('MIN_DEPOSIT_RATIO', 0.5)))
+        total_referencia = self.orcamento_total_aprovado or self.orcamento_total_estimado or self.total
+        total_referencia = total_referencia or Decimal('0.00')
+        return (total_referencia * ratio).quantize(Decimal('0.01'))
+
+    @property
+    def sinal_atendido(self):
+        return self.total_pago >= self.valor_minimo_sinal
+
+    @property
+    def percentual_pago(self):
+        total_referencia = self.orcamento_total_aprovado or self.orcamento_total_estimado or self.total
+        if not total_referencia:
+            return Decimal('0.00')
+        return (self.total_pago / total_referencia * Decimal('100')).quantize(Decimal('0.01'))
+
+    def atualizar_totais_por_itens(self, commit=True):
+        totais = self.itens.values('tipo').annotate(total=Sum('valor_total'))
+        total_servico = Decimal('0.00')
+        total_pecas = Decimal('0.00')
+        total_terceiros = Decimal('0.00')
+
+        for grupo in totais:
+            tipo = grupo['tipo']
+            valor = grupo['total'] or Decimal('0.00')
+            if tipo == 'SERVICO':
+                total_servico = valor
+            elif tipo == 'PECA':
+                total_pecas = valor
+            elif tipo == 'TERCEIRO':
+                total_terceiros = valor
+
+        self.valor_mao_obra = total_servico
+        self.valor_pecas = total_pecas
+        self.valor_terceiros = total_terceiros
+        self.total = self.calcular_total()
+        if self.estimate_type == self.EstimateType.FIXED:
+            self.orcamento_total_estimado = self.total
+
+        if commit:
+            self.save(update_fields=[
+                'valor_mao_obra', 'valor_pecas', 'valor_terceiros',
+                'total', 'orcamento_total_estimado', 'atualizado_em'
+            ])
 
 
 class ItemOrdemServico(models.Model):

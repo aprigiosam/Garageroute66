@@ -10,6 +10,7 @@ from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
 from django.views.decorators.cache import cache_page
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -271,7 +272,8 @@ def abrir_ordem_servico(request):
             formset.save()
             fotos_formset.instance = ordem_servico
             fotos_formset.save()
-            
+            ordem_servico.atualizar_totais_por_itens()
+
             cliente_nome = (
                 ordem_servico.veiculo.cliente.nome
                 if ordem_servico.veiculo and ordem_servico.veiculo.cliente
@@ -371,7 +373,8 @@ def editar_ordem_servico(request, ordem_id):
 
             formset.save()
             fotos_formset.save()
-            
+            ordem_servico.atualizar_totais_por_itens()
+
             # Registrar mudança de status se houve alteração
             status_novo = request.POST.get('status', ordem_servico.status)
             if status_novo != status_anterior:
@@ -421,6 +424,7 @@ def detalhes_ordem_servico(request, ordem_id):
 
     # Histórico completo
     historico = ordem.historico_status.select_related('usuario').all()
+    deposit_ratio_percent = (Decimal(str(getattr(settings, 'GARAGE_CONFIG', {}).get('MIN_DEPOSIT_RATIO', 0.5))) * Decimal('100')).quantize(Decimal('0.01'))
 
     context = {
         'ordem': ordem,
@@ -432,6 +436,10 @@ def detalhes_ordem_servico(request, ordem_id):
         'total_pago': ordem.total_pago,
         'saldo_pendente': ordem.saldo_pendente,
         'total_aprovado': ordem.orcamento_total_aprovado or ordem.total,
+        'valor_minimo_sinal': ordem.valor_minimo_sinal,
+        'sinal_atendido': ordem.sinal_atendido,
+        'percentual_pago': ordem.percentual_pago,
+        'deposit_ratio_percent': deposit_ratio_percent,
         'requisicoes_pecas': ordem.requisicoes_pecas.select_related('peca', 'fornecedor', 'solicitado_por', 'recebido_por'),
         'pedido_peca_form': PedidoPecaOrdemForm(user=request.user),
         'possui_pecas_pendentes': ordem.possui_pecas_pendentes,
@@ -599,6 +607,7 @@ def mecanico_diagnostico(request, ordem_id):
             ordem_servico.save()
             formset.save()
             fotos_formset.save()
+            ordem_servico.atualizar_totais_por_itens()
 
             messages.success(request, 'Diagnóstico enviado para a recepção.')
             return redirect('core:mecanico_minhas_ordens')
@@ -650,6 +659,17 @@ def mecanico_atualizar_status(request, ordem_id):
         messages.warning(request, 'Ação inválida para o status atual da ordem.')
         return redirect('core:mecanico_minhas_ordens')
 
+    if proximo_status == OrdemServico.Status.EM_EXECUCAO:
+        if not ordem.sinal_atendido:
+            messages.warning(
+                request,
+                f'Sinal mínimo de R$ {ordem.valor_minimo_sinal:,.2f} não recebido. Solicite à recepção.'
+            )
+            return redirect('core:mecanico_minhas_ordens')
+        if ordem.possui_pecas_pendentes:
+            messages.warning(request, 'Ainda há peças aguardando compra ou entrega. Aguarde a recepção.')
+            return redirect('core:mecanico_minhas_ordens')
+
     status_anterior = ordem.status
     ordem.status = proximo_status
     ordem.save()
@@ -684,6 +704,10 @@ def atualizar_status_ordem(request, ordem_id):
     if novo_status in dict(OrdemServico.Status.choices):
         if novo_status == OrdemServico.Status.EM_EXECUCAO and ordem.status != OrdemServico.Status.APROVADA:
             return JsonResponse({'success': False, 'message': 'Só ordens aprovadas podem entrar em execução.'})
+        if novo_status == OrdemServico.Status.EM_EXECUCAO and not ordem.sinal_atendido:
+            return JsonResponse({'success': False, 'message': f'Sinal mínimo de R$ {ordem.valor_minimo_sinal:,.2f} não recebido.'})
+        if novo_status == OrdemServico.Status.EM_EXECUCAO and ordem.possui_pecas_pendentes:
+            return JsonResponse({'success': False, 'message': 'Existem requisições de peças pendentes.'})
         if novo_status == OrdemServico.Status.APROVADA and ordem.status != OrdemServico.Status.ORCAMENTO_ENVIADO:
             return JsonResponse({'success': False, 'message': 'Envie o orçamento para o cliente antes de aprovar.'})
         if novo_status == OrdemServico.Status.ENTREGUE and not ordem.quitada:

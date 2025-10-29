@@ -201,6 +201,7 @@ GARAGE_CONFIG = {
     'SEND_EMAIL_NOTIFICATIONS': False,  # Desabilitado
     'SEND_SMS_NOTIFICATIONS': False,    # Desabilitado
     'ENABLE_REPORTS': False,            # Sem PDF por enquanto
+    'MIN_DEPOSIT_RATIO': env.float('MIN_DEPOSIT_RATIO', default=0.5),
 }
 
 # Paginação
