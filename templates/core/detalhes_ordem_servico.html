@@ -98,6 +98,22 @@
 <div class="row">
     <!-- Informações Principais -->
     <div class="col-lg-8">
+        {% if ordem.status == 'CONCLUIDA' %}
+        <div class="alert {% if saldo_pendente > 0 %}alert-warning{% else %}alert-info{% endif %} shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-clipboard-check fs-4 me-3"></i>
+                <div>
+                    <h6 class="mb-1 text-uppercase fw-bold">Execução finalizada</h6>
+                    {% if saldo_pendente > 0 %}
+                        <p class="mb-0">O mecânico concluiu os trabalhos. Realize a cobrança do cliente para liberar a entrega.</p>
+                    {% else %}
+                        <p class="mb-0">Serviço concluído e pagamento em dia. Libere a entrega quando o cliente retirar o veículo.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Dados do Cliente e Veículo -->
         <div class="card mb-4">
             <div class="card-header">
