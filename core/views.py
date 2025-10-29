@@ -442,6 +442,7 @@ def mecanico_minhas_ordens(request):
             OrdemServico.Status.ORCAMENTO_ENVIADO,
             OrdemServico.Status.APROVADA,
             OrdemServico.Status.EM_EXECUCAO,
+            OrdemServico.Status.AGUARDANDO_PECA,
         ]
     ).order_by('status', '-prioridade', '-data_abertura')
 
@@ -498,6 +499,62 @@ def mecanico_diagnostico(request, ordem_id):
         'item_empty_form': formset.empty_form,
         'foto_empty_form': fotos_formset.empty_form,
     })
+
+
+@login_required
+@require_http_methods(["POST"])
+def mecanico_atualizar_status(request, ordem_id):
+    ordem = get_object_or_404(
+        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico'),
+        id=ordem_id
+    )
+
+    if ordem.responsavel_tecnico != request.user:
+        messages.error(request, 'Você não tem permissão para alterar esta ordem.')
+        return redirect('core:mecanico_minhas_ordens')
+
+    acao = request.POST.get('acao')
+    transicoes = {
+        OrdemServico.Status.APROVADA: {
+            'iniciar_execucao': OrdemServico.Status.EM_EXECUCAO,
+            'aguardar_peca': OrdemServico.Status.AGUARDANDO_PECA,
+        },
+        OrdemServico.Status.EM_EXECUCAO: {
+            'aguardar_peca': OrdemServico.Status.AGUARDANDO_PECA,
+            'concluir_execucao': OrdemServico.Status.CONCLUIDA,
+        },
+        OrdemServico.Status.AGUARDANDO_PECA: {
+            'retomar_execucao': OrdemServico.Status.EM_EXECUCAO,
+        },
+    }
+
+    proximo_status = transicoes.get(ordem.status, {}).get(acao)
+
+    if not proximo_status:
+        messages.warning(request, 'Ação inválida para o status atual da ordem.')
+        return redirect('core:mecanico_minhas_ordens')
+
+    status_anterior = ordem.status
+    ordem.status = proximo_status
+    ordem.save()
+
+    StatusHistorico.objects.create(
+        ordem_servico=ordem,
+        status_anterior=status_anterior,
+        status_novo=proximo_status,
+        usuario=request.user,
+        observacao=request.POST.get('observacao', '')
+    )
+
+    mensagens_sucesso = {
+        'iniciar_execucao': 'Execução iniciada. Boa mão na massa!',
+        'aguardar_peca': 'Ordem marcada como aguardando peça.',
+        'concluir_execucao': 'Execução concluída! Avise a recepção.',
+        'retomar_execucao': 'Execução retomada.',
+    }
+    messages.success(request, mensagens_sucesso.get(acao, 'Status atualizado com sucesso.'))
+
+    return redirect('core:mecanico_minhas_ordens')
 
 
 @login_required
