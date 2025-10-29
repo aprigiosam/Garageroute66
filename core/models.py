@@ -344,6 +344,12 @@ class OrdemServico(TimestampedModel):
     def quitada(self):
         return self.saldo_pendente == Decimal('0.00')
 
+    @property
+    def possui_pecas_pendentes(self):
+        return self.requisicoes_pecas.filter(
+            status__in=['SOLICITADO', 'EM_COMPRA', 'AGUARDANDO_ENTREGA']
+        ).exists()
+
 
 class ItemOrdemServico(models.Model):
     """Itens/serviços específicos de uma ordem de serviço"""
@@ -474,6 +480,84 @@ class PagamentoOrdemServico(TimestampedModel):
             self.troco = None
         elif self.valor_recebido and self.valor_recebido < self.valor:
             raise ValidationError({'valor_recebido': 'O valor recebido não pode ser menor que o valor do pagamento.'})
+
+
+class PedidoPecaOrdem(TimestampedModel):
+    class Status(models.TextChoices):
+        SOLICITADO = 'SOLICITADO', 'Solicitado'
+        EM_COMPRA = 'EM_COMPRA', 'Em compra'
+        AGUARDANDO_ENTREGA = 'AGUARDANDO_ENTREGA', 'Aguardando entrega'
+        RECEBIDO = 'RECEBIDO', 'Recebido'
+        CANCELADO = 'CANCELADO', 'Cancelado'
+
+    ordem_servico = models.ForeignKey(
+        OrdemServico,
+        verbose_name='Ordem de Serviço',
+        related_name='requisicoes_pecas',
+        on_delete=models.CASCADE
+    )
+    peca = models.ForeignKey(
+        'Peca',
+        verbose_name='Peça do estoque',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    descricao = models.CharField('Descrição da peça', max_length=255, blank=True)
+    quantidade = models.DecimalField('Quantidade', max_digits=10, decimal_places=2, default=Decimal('1.00'))
+    fornecedor = models.ForeignKey(
+        'Fornecedor',
+        verbose_name='Fornecedor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    status = models.CharField('Status', max_length=20, choices=Status.choices, default=Status.SOLICITADO)
+    previsao_entrega = models.DateField('Previsão de entrega', null=True, blank=True)
+    data_recebimento = models.DateTimeField('Data de recebimento', null=True, blank=True)
+    solicitado_por = models.ForeignKey(
+        User,
+        verbose_name='Solicitado por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_pecas_solicitadas'
+    )
+    recebido_por = models.ForeignKey(
+        User,
+        verbose_name='Recebido por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_pecas_recebidas'
+    )
+    observacao = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Requisição de Peça'
+        verbose_name_plural = 'Requisições de Peças'
+        ordering = ['status', 'criado_em']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['previsao_entrega']),
+        ]
+
+    def __str__(self) -> str:
+        base = self.peca.nome if self.peca else (self.descricao or 'Peça não informada')
+        return f"{base} - {self.get_status_display()}"
+
+    def clean(self):
+        super().clean()
+        if not self.peca and not self.descricao:
+            raise ValidationError('Informe a peça do estoque ou uma descrição.')
+        if self.quantidade <= 0:
+            raise ValidationError({'quantidade': 'A quantidade precisa ser maior que zero.'})
+
+    def marcar_como_recebido(self, usuario):
+        self.status = self.Status.RECEBIDO
+        self.data_recebimento = timezone.now()
+        self.recebido_por = usuario
+        self.save(update_fields=['status', 'data_recebimento', 'recebido_por', 'atualizado_em'])
 
 
 class Caixa(TimestampedModel):

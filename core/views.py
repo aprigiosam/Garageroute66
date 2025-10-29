@@ -15,12 +15,12 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import json
 
-from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento, PagamentoOrdemServico
+from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento, PagamentoOrdemServico, PedidoPecaOrdem
 from .forms import (
     ClienteForm, OrdemServicoForm, VeiculoForm,
     FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
     ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm,
-    PagamentoOrdemServicoForm
+    PagamentoOrdemServicoForm, PedidoPecaOrdemForm
 )
 from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
 from .backup_utils import create_db_backup
@@ -432,6 +432,9 @@ def detalhes_ordem_servico(request, ordem_id):
         'total_pago': ordem.total_pago,
         'saldo_pendente': ordem.saldo_pendente,
         'total_aprovado': ordem.orcamento_total_aprovado or ordem.total,
+        'requisicoes_pecas': ordem.requisicoes_pecas.select_related('peca', 'fornecedor', 'solicitado_por', 'recebido_por'),
+        'pedido_peca_form': PedidoPecaOrdemForm(user=request.user),
+        'possui_pecas_pendentes': ordem.possui_pecas_pendentes,
     }
     return render(request, 'core/detalhes_ordem_servico.html', context)
 
@@ -458,6 +461,89 @@ def registrar_pagamento_ordem(request, ordem_id):
         messages.error(request, 'Não foi possível registrar o pagamento. Verifique os dados informados.')
 
     return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def criar_requisicao_peca(request, ordem_id):
+    ordem = get_object_or_404(
+        OrdemServico.objects.select_related('veiculo__cliente'),
+        id=ordem_id
+    )
+
+    form = PedidoPecaOrdemForm(request.POST, user=request.user)
+    if form.is_valid():
+        requisicao = form.save(commit=False)
+        requisicao.ordem_servico = ordem
+        if not requisicao.solicitado_por:
+            requisicao.solicitado_por = request.user
+        requisicao.save()
+        messages.success(request, 'Pedido de peça registrado com sucesso.')
+    else:
+        messages.error(request, 'Não foi possível registrar o pedido de peça. Verifique os campos destacados.')
+
+    return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def atualizar_requisicao_peca(request, ordem_id, requisicao_id):
+    requisicao = get_object_or_404(
+        PedidoPecaOrdem.objects.select_related('ordem_servico'),
+        id=requisicao_id,
+        ordem_servico_id=ordem_id
+    )
+
+    acao = request.POST.get('acao')
+    transicoes = {
+        'enviar_compra': PedidoPecaOrdem.Status.EM_COMPRA,
+        'aguardar_entrega': PedidoPecaOrdem.Status.AGUARDANDO_ENTREGA,
+        'marcar_recebido': PedidoPecaOrdem.Status.RECEBIDO,
+        'cancelar': PedidoPecaOrdem.Status.CANCELADO,
+    }
+
+    novo_status = transicoes.get(acao)
+    if not novo_status:
+        messages.warning(request, 'Ação inválida para a requisição de peça.')
+        return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
+
+    requisicao.status = novo_status
+    requisicao.observacao = request.POST.get('observacao', requisicao.observacao)
+
+    if novo_status == PedidoPecaOrdem.Status.RECEBIDO:
+        requisicao.data_recebimento = timezone.now()
+        requisicao.recebido_por = request.user
+    else:
+        requisicao.data_recebimento = None
+        requisicao.recebido_por = None
+
+    requisicao.save()
+
+    if requisicao.ordem_servico.status == OrdemServico.Status.AGUARDANDO_PECA:
+        if not requisicao.ordem_servico.possui_pecas_pendentes and novo_status == PedidoPecaOrdem.Status.RECEBIDO:
+            # Reativar execução automaticamente
+            status_anterior = requisicao.ordem_servico.status
+            requisicao.ordem_servico.status = OrdemServico.Status.EM_EXECUCAO
+            requisicao.ordem_servico.save(update_fields=['status'])
+            StatusHistorico.objects.create(
+                ordem_servico=requisicao.ordem_servico,
+                status_anterior=status_anterior,
+                status_novo=OrdemServico.Status.EM_EXECUCAO,
+                usuario=request.user,
+                observacao='Peças recebidas - execução retomada automaticamente.'
+            )
+            messages.success(request, 'Peças recebidas. OS retomada para execução.')
+            return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
+
+    mensagens = {
+        PedidoPecaOrdem.Status.EM_COMPRA: 'Requisição marcada como em compra.',
+        PedidoPecaOrdem.Status.AGUARDANDO_ENTREGA: 'Aguardando entrega do fornecedor.',
+        PedidoPecaOrdem.Status.RECEBIDO: 'Peça marcada como recebida.',
+        PedidoPecaOrdem.Status.CANCELADO: 'Requisição cancelada.',
+    }
+    messages.success(request, mensagens.get(novo_status, 'Requisição atualizada.'))
+
+    return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
 
 
 @login_required

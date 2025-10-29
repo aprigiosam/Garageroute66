@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from .models import (
     Cliente, OrdemServico, Veiculo, ItemOrdemServico, FotoOrdemServico,
-    PagamentoOrdemServico, Agendamento, CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
+    PagamentoOrdemServico, PedidoPecaOrdem, Agendamento, CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
 )
 
 
@@ -373,6 +373,40 @@ class PagamentoOrdemServicoForm(BaseBootstrapForm):
         if not instance.pk and self.user and not instance.recebido_por:
             instance.recebido_por = self.user
 
+        if commit:
+            instance.save()
+        return instance
+
+
+class PedidoPecaOrdemForm(BaseBootstrapForm):
+    class Meta:
+        model = PedidoPecaOrdem
+        fields = ['peca', 'descricao', 'quantidade', 'fornecedor', 'previsao_entrega', 'observacao']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['descricao'].widget = forms.Textarea(attrs={'rows': 2})
+        self.fields['previsao_entrega'].widget = forms.DateInput(attrs={'type': 'date'})
+        self.fields['quantidade'].widget.attrs.update({'min': '0.1', 'step': '0.1'})
+
+    def clean(self):
+        cleaned_data = super().clean()
+        peca = cleaned_data.get('peca')
+        descricao = cleaned_data.get('descricao')
+
+        if not peca and not descricao:
+            self.add_error('descricao', 'Informe uma descrição quando não houver peça cadastrada.')
+
+        quantidade = cleaned_data.get('quantidade') or Decimal('0.0')
+        if quantidade <= 0:
+            self.add_error('quantidade', 'A quantidade precisa ser maior que zero.')
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.pk and self.user and not instance.solicitado_por:
+            instance.solicitado_por = self.user
         if commit:
             instance.save()
         return instance

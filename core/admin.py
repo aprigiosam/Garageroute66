@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from .models import (
     Cliente, OrdemServico, Veiculo, ItemOrdemServico,
-    FotoOrdemServico, PagamentoOrdemServico, Caixa, LancamentoCaixa,
+    FotoOrdemServico, PagamentoOrdemServico, PedidoPecaOrdem,
+    Caixa, LancamentoCaixa,
     StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
     Peca, MovimentacaoEstoque
 )
@@ -40,6 +41,17 @@ class FotoOrdemServicoInline(admin.TabularInline):
             return format_html('<img src="{}" style="max-height: 120px; border-radius: 6px;" />', obj.imagem.url)
         return "-"
     imagem_preview.short_description = 'Pré-visualização'
+
+
+class PedidoPecaOrdemInline(admin.TabularInline):
+    model = PedidoPecaOrdem
+    extra = 0
+    fields = (
+        'peca', 'descricao', 'quantidade', 'fornecedor',
+        'status', 'previsao_entrega', 'data_recebimento',
+        'solicitado_por', 'recebido_por', 'observacao'
+    )
+    readonly_fields = ('data_recebimento', 'solicitado_por', 'recebido_por')
 
 
 class PagamentoInline(admin.TabularInline):
@@ -182,7 +194,7 @@ class OrdemServicoAdmin(admin.ModelAdmin):
     )
     date_hierarchy = 'data_abertura'
     list_select_related = ('veiculo', 'veiculo__cliente', 'responsavel_tecnico')
-    inlines = [ItemOrdemServicoInline, FotoOrdemServicoInline, PagamentoInline, StatusHistoricoInline]
+    inlines = [ItemOrdemServicoInline, FotoOrdemServicoInline, PedidoPecaOrdemInline, PagamentoInline, StatusHistoricoInline]
     
     fieldsets = (
         ('Informações Básicas', {
@@ -372,6 +384,25 @@ class PagamentoOrdemServicoAdmin(admin.ModelAdmin):
     search_fields = ('ordem_servico__numero_os', 'ordem_servico__veiculo__placa', 'ordem_servico__veiculo__cliente__nome')
     autocomplete_fields = ['ordem_servico', 'recebido_por']
     readonly_fields = ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por')
+
+
+@admin.register(PedidoPecaOrdem)
+class PedidoPecaOrdemAdmin(admin.ModelAdmin):
+    list_display = (
+        'ordem_servico', 'item_exibicao', 'quantidade', 'status',
+        'fornecedor', 'previsao_entrega', 'data_recebimento'
+    )
+    list_filter = ('status', 'fornecedor', 'previsao_entrega')
+    search_fields = (
+        'ordem_servico__numero_os', 'ordem_servico__veiculo__placa',
+        'descricao', 'peca__nome'
+    )
+    autocomplete_fields = ['ordem_servico', 'peca', 'fornecedor']
+    readonly_fields = ('solicitado_por', 'recebido_por', 'data_recebimento', 'criado_em', 'atualizado_em')
+
+    def item_exibicao(self, obj):
+        return obj.peca or obj.descricao
+    item_exibicao.short_description = 'Item'
 
 
 @admin.register(Caixa)

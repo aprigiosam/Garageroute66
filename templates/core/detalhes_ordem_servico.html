@@ -410,6 +410,144 @@
             </div>
         </div>
 
+        <!-- Requisições de Peças -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0"><i class="bi bi-tools me-2"></i>Peças & Compras</h6>
+                {% if possui_pecas_pendentes %}
+                    <span class="badge bg-warning text-dark">Pendências</span>
+                {% else %}
+                    <span class="badge bg-success">OK</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'core:criar_requisicao_peca' ordem.id %}" class="border rounded p-3 mb-3 bg-dark bg-opacity-25">
+                    <h6 class="mb-2">Registrar nova requisição</h6>
+                    {% csrf_token %}
+                    {% if pedido_peca_form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in pedido_peca_form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label" for="{{ pedido_peca_form.peca.id_for_label }}">Peça do estoque</label>
+                            {{ pedido_peca_form.peca }}
+                            {% for error in pedido_peca_form.peca.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="{{ pedido_peca_form.descricao.id_for_label }}">Descrição alternativa</label>
+                            {{ pedido_peca_form.descricao }}
+                            <small class="text-muted">Use quando a peça não estiver cadastrada.</small>
+                            {% for error in pedido_peca_form.descricao.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label" for="{{ pedido_peca_form.quantidade.id_for_label }}">Quantidade</label>
+                            {{ pedido_peca_form.quantidade }}
+                            {% for error in pedido_peca_form.quantidade.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label" for="{{ pedido_peca_form.fornecedor.id_for_label }}">Fornecedor</label>
+                            {{ pedido_peca_form.fornecedor }}
+                            {% for error in pedido_peca_form.fornecedor.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="{{ pedido_peca_form.previsao_entrega.id_for_label }}">Previsão de entrega</label>
+                            {{ pedido_peca_form.previsao_entrega }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="{{ pedido_peca_form.observacao.id_for_label }}">Observações</label>
+                            {{ pedido_peca_form.observacao }}
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm mt-3 w-100" type="submit"><i class="bi bi-plus-lg me-1"></i>Criar requisição</button>
+                </form>
+
+                {% if requisicoes_pecas %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="text-center">Qtd</th>
+                                    <th>Status</th>
+                                    <th>Fornecedor</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for requisicao in requisicoes_pecas %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ requisicao.peca|default:requisicao.descricao }}</strong><br>
+                                        <small class="text-muted">Solicitado por {{ requisicao.solicitado_por|default:"-" }} em {{ requisicao.criado_em|date:"d/m/Y H:i" }}</small>
+                                    </td>
+                                    <td class="text-center">{{ requisicao.quantidade }}</td>
+                                    <td>
+                                        <span class="badge
+                                            {% if requisicao.status == 'SOLICITADO' %}bg-secondary
+                                            {% elif requisicao.status == 'EM_COMPRA' %}bg-warning text-dark
+                                            {% elif requisicao.status == 'AGUARDANDO_ENTREGA' %}bg-info text-dark
+                                            {% elif requisicao.status == 'RECEBIDO' %}bg-success
+                                            {% else %}bg-dark{% endif %}">
+                                            {{ requisicao.get_status_display }}
+                                        </span>
+                                        {% if requisicao.previsao_entrega %}
+                                            <div class="small text-muted">Previsto: {{ requisicao.previsao_entrega|date:"d/m/Y" }}</div>
+                                        {% endif %}
+                                        {% if requisicao.data_recebimento %}
+                                            <div class="small text-success">Recebido em {{ requisicao.data_recebimento|date:"d/m/Y H:i" }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ requisicao.fornecedor|default:"-" }}</td>
+                                    <td class="text-end">
+                                        <div class="btn-group btn-group-sm">
+                                            <form method="post" action="{% url 'core:atualizar_requisicao_peca' ordem.id requisicao.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="acao" value="enviar_compra">
+                                                <button class="btn btn-outline-secondary" type="submit" {% if requisicao.status != 'SOLICITADO' %}disabled{% endif %} title="Enviar para compra">
+                                                    <i class="bi bi-cart"></i>
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{% url 'core:atualizar_requisicao_peca' ordem.id requisicao.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="acao" value="aguardar_entrega">
+                                                <button class="btn btn-outline-info" type="submit" {% if requisicao.status != 'SOLICITADO' and requisicao.status != 'EM_COMPRA' %}disabled{% endif %} title="Aguardando entrega">
+                                                    <i class="bi bi-truck"></i>
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{% url 'core:atualizar_requisicao_peca' ordem.id requisicao.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="acao" value="marcar_recebido">
+                                                <button class="btn btn-outline-success" type="submit" {% if requisicao.status != 'SOLICITADO' and requisicao.status != 'EM_COMPRA' and requisicao.status != 'AGUARDANDO_ENTREGA' %}disabled{% endif %} title="Marcar como recebido">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{% url 'core:atualizar_requisicao_peca' ordem.id requisicao.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="acao" value="cancelar">
+                                                <button class="btn btn-outline-danger" type="submit" {% if requisicao.status == 'RECEBIDO' %}disabled{% endif %} title="Cancelar requisição" onclick="return confirm('Confirmar cancelamento desta requisição?');">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% if requisicao.observacao %}
+                                <tr>
+                                    <td colspan="5" class="text-muted small">{{ requisicao.observacao }}</td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhuma requisição cadastrada.</p>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Cronologia -->
         <div class="card mb-4">
             <div class="card-header">
