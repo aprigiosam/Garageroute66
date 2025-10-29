@@ -99,21 +99,21 @@
                             <div class="border rounded p-3 mb-3 formset-item">
                                 {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
                                 <div class="row g-3 align-items-end">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Descrição</label>
-                                        {{ item_form.descricao }}
-                                        {% for error in item_form.descricao.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Quantidade</label>
-                                        {{ item_form.quantidade }}
-                                        {% for error in item_form.quantidade.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Valor unitário</label>
-                                        {{ item_form.valor_unitario }}
-                                        {% for error in item_form.valor_unitario.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                                    </div>
+                                    {% for field in item_form.visible_fields %}
+                                        <div class="col-md-6 col-lg-3">
+                                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                            {{ field }}
+                                            {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                        </div>
+                                    {% endfor %}
+                                    {% if item_form.can_delete %}
+                                        <div class="col-12">
+                                            <div class="form-check">
+                                                {{ item_form.DELETE }}
+                                                <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">Remover item</label>
+                                            </div>
+                                        </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% empty %}
@@ -125,7 +125,7 @@
                             {% for hidden in item_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
                             <div class="row g-3 align-items-end">
                                 {% for field in item_empty_form.visible_fields %}
-                                    <div class="col-md-6">
+                                    <div class="col-md-6 col-lg-3">
                                         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                                         {{ field }}
                                     </div>
