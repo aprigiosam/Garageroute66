@@ -35,7 +35,7 @@
                         <dd class="col-6">{{ ordem.data_abertura|date:"d/m/Y H:i" }}</dd>
                     </dl>
                     <div class="d-grid gap-2">
-                        {% if ordem.status in [ordem.Status.DIAGNOSTICO, ordem.Status.ORCAMENTO] %}
+                        {% if ordem.status == 'DIAGNOSTICO' or ordem.status == 'ORCAMENTO' %}
                             <a class="btn btn-outline-primary btn-sm" href="{% url 'core:mecanico_diagnostico' ordem.id %}"><i class="bi bi-clipboard-plus me-1"></i>Registrar diagnóstico</a>
                         {% endif %}
                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:detalhes_ordem_servico' ordem.id %}"><i class="bi bi-eye me-1"></i>Ver detalhes</a>
