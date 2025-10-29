@@ -412,6 +412,25 @@ class PedidoPecaOrdemForm(BaseBootstrapForm):
         return instance
 
 
+class PublicoPagamentoForm(forms.Form):
+    valor = forms.DecimalField(
+        label='Valor do pagamento',
+        min_value=Decimal('0.01'),
+        decimal_places=2,
+        max_digits=10,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
+    )
+    contato = forms.CharField(
+        label='Contato (e-mail ou telefone)',
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    observacao = forms.CharField(
+        label='Observações',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3})
+    )
+
 class AgendamentoForm(BaseBootstrapForm):
     class Meta:
         model = Agendamento

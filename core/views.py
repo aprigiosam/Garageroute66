@@ -21,7 +21,7 @@ from .forms import (
     ClienteForm, OrdemServicoForm, VeiculoForm,
     FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
     ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm,
-    PagamentoOrdemServicoForm, PedidoPecaOrdemForm
+    PagamentoOrdemServicoForm, PedidoPecaOrdemForm, PublicoPagamentoForm
 )
 from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
 from .backup_utils import create_db_backup
@@ -781,19 +781,57 @@ def orcamento_publico(request, token):
         orcamento_token=token
     )
 
-    aprovado = False
+    aprovado = ordem.status == OrdemServico.Status.APROVADA
     mensagem = ''
+    mensagem_pagamento = ''
+    erro_pagamento = ''
 
-    if request.method == 'POST' and ordem.status in [OrdemServico.Status.ORCAMENTO_ENVIADO, OrdemServico.Status.ORCAMENTO]:
-        ordem.registrar_aprovacao()
-        aprovado = True
-        mensagem = 'Orçamento aprovado com sucesso! Nossa equipe dará sequência.'
+    pix_config = getattr(settings, 'GARAGE_CONFIG', {})
+    pix_key = pix_config.get('PIX_KEY', '')
+    pix_instrucoes = pix_config.get('PIX_INSTRUCTIONS', 'Use os dados acima para efetuar o pagamento do sinal.')
+
+    pagamento_form = PublicoPagamentoForm(initial={'valor': ordem.valor_minimo_sinal})
+
+    if request.method == 'POST':
+        if 'registrar_pagamento' in request.POST:
+            pagamento_form = PublicoPagamentoForm(request.POST)
+            if pagamento_form.is_valid():
+                dados = pagamento_form.cleaned_data
+                observacao_extra = dados.get('observacao', '')
+                contato = dados.get('contato', '')
+                observacao = 'Pagamento informado via link público.'
+                if contato:
+                    observacao += f" Contato: {contato}."
+                if observacao_extra:
+                    observacao += f" Observação: {observacao_extra}"
+
+                PagamentoOrdemServico.objects.create(
+                    ordem_servico=ordem,
+                    valor=dados['valor'],
+                    forma_pagamento=PagamentoOrdemServico.FormaPagamento.PIX if pix_key else PagamentoOrdemServico.FormaPagamento.OUTROS,
+                    status=PagamentoOrdemServico.Status.PENDENTE,
+                    observacao=observacao
+                )
+                mensagem_pagamento = 'Recebemos a confirmação do pagamento. A recepção validará e entrará em contato.'
+                pagamento_form = PublicoPagamentoForm(initial={'valor': ordem.valor_minimo_sinal})
+            else:
+                erro_pagamento = 'Não foi possível registrar o pagamento. Verifique os valores informados.'
+        elif ordem.status in [OrdemServico.Status.ORCAMENTO_ENVIADO, OrdemServico.Status.ORCAMENTO]:
+            ordem.registrar_aprovacao()
+            aprovado = True
+            mensagem = 'Orçamento aprovado com sucesso! Nossa equipe dará sequência.'
 
     contexto = {
         'ordem': ordem,
         'itens': ordem.itens.all(),
-        'aprovado': aprovado or ordem.status == OrdemServico.Status.APROVADA,
+        'aprovado': aprovado,
         'mensagem': mensagem,
+        'mensagem_pagamento': mensagem_pagamento,
+        'erro_pagamento': erro_pagamento,
+        'valor_minimo_sinal': ordem.valor_minimo_sinal,
+        'pix_key': pix_key,
+        'pix_instrucoes': pix_instrucoes,
+        'pagamento_form': pagamento_form,
     }
     return render(request, 'core/public_orcamento.html', contexto)
 

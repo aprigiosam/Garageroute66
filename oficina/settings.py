@@ -202,6 +202,8 @@ GARAGE_CONFIG = {
     'SEND_SMS_NOTIFICATIONS': False,    # Desabilitado
     'ENABLE_REPORTS': False,            # Sem PDF por enquanto
     'MIN_DEPOSIT_RATIO': env.float('MIN_DEPOSIT_RATIO', default=0.5),
+    'PIX_KEY': env('PIX_KEY', default=''),
+    'PIX_INSTRUCTIONS': env('PIX_INSTRUCTIONS', default='Use a chave Pix acima para efetuar o pagamento do sinal.'),
 }
 
 # Paginação

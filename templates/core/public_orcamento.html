@@ -100,10 +100,60 @@
             <div class="alert alert-success text-center">
                 <i class="bi bi-check-circle-fill me-2"></i>Orçamento aprovado. Obrigado pela confiança!
             </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0"><i class="bi bi-piggy-bank me-2"></i>Pagamento do sinal</h2>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Para darmos continuidade, precisamos de um sinal mínimo de <strong>R$ {{ valor_minimo_sinal|floatformat:2 }}</strong>. Assim que confirmarmos o recebimento, iniciaremos a execução.</p>
+
+                    {% if pix_key %}
+                        <div class="alert alert-dark">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-qr-code fs-4 me-3"></i>
+                                <div>
+                                    <div class="fw-bold">Chave Pix:</div>
+                                    <div class="text-break">{{ pix_key }}</div>
+                                    <div class="small mt-2">{{ pix_instrucoes }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if mensagem_pagamento %}
+                        <div class="alert alert-success">{{ mensagem_pagamento }}</div>
+                    {% endif %}
+                    {% if erro_pagamento %}
+                        <div class="alert alert-danger">{{ erro_pagamento }}</div>
+                    {% endif %}
+
+                    <form method="post" class="bg-dark bg-opacity-50 p-3 rounded">
+                        {% csrf_token %}
+                        <div class="row g-3">
+                            {% for field in pagamento_form %}
+                                <div class="col-12">
+                                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <div class="form-text">{{ field.help_text }}</div>
+                                    {% endif %}
+                                    {% for error in field.errors %}
+                                        <div class="text-danger small">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <button class="btn btn-outline-success mt-3" type="submit" name="registrar_pagamento" value="1">
+                            <i class="bi bi-cash-coin me-2"></i>Informei o pagamento do sinal
+                        </button>
+                    </form>
+                </div>
+            </div>
         {% else %}
             <form method="post" class="text-center">
                 {% csrf_token %}
-                <button class="btn btn-success btn-lg" type="submit">
+                <button class="btn btn-success btn-lg" type="submit" name="aprovar_orcamento" value="1">
                     <i class="bi bi-hand-thumbs-up me-2"></i>Aprovar orçamento
                 </button>
                 <p class="text-muted mt-3 small">Ao aprovar, autorizo a execução dos serviços descritos.</p>
