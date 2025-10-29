@@ -70,7 +70,7 @@ class DashboardCache:
                 'total_clientes': Cliente.objects.filter(ativo=True).count(),
                 'total_veiculos': Veiculo.objects.filter(ativo=True).count(),
                 'ordens_abertas': OrdemServico.objects.filter(
-                    status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
+                    status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
                 ).count(),
                 'ordens_mes': OrdemServico.objects.filter(data_abertura__gte=mes_inicio).count(),
                 'faturamento_mes': OrdemServico.objects.filter(
@@ -147,7 +147,7 @@ class QueryCache:
         return OrdemServico.objects.select_related(
             'veiculo__cliente', 'responsavel_tecnico'
         ).filter(
-            status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
+            status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
         ).order_by('-data_abertura')
 
     @staticmethod

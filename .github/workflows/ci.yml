@@ -34,4 +34,4 @@ jobs:
         run: python manage.py migrate --no-input
 
       - name: Run tests
-        run: python manage.py test --verbosity 2
+        run: python manage.py test core --verbosity 2

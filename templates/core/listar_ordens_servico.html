@@ -163,6 +163,12 @@
                                    class="btn btn-outline-warning" title="Editar">
                                     <i class="bi bi-pencil"></i>
                                 </a>
+                                {% if ordem.status == 'ORCAMENTO_ENVIADO' or ordem.status == 'DIAGNOSTICO' %}
+                                <a href="{% url 'core:orcamento_publico' ordem.orcamento_token %}" 
+                                   class="btn btn-outline-info" title="Link público" target="_blank">
+                                    <i class="bi bi-link-45deg"></i>
+                                </a>
+                                {% endif %}
                                 <button type="button" class="btn btn-outline-info" 
                                         onclick="printOS({{ ordem.id }})" title="Imprimir">
                                     <i class="bi bi-printer"></i>
@@ -241,12 +247,18 @@
                             <div class="d-flex gap-2">
                                 <a href="{% url 'core:detalhes_ordem_servico' ordem.id %}" 
                                    class="btn btn-outline-primary btn-sm flex-fill">
-                                    <i class="bi bi-eye me-1"></i>Detalhes
+                                   <i class="bi bi-eye me-1"></i>Detalhes
                                 </a>
                                 <a href="{% url 'core:editar_ordem_servico' ordem.id %}" 
                                    class="btn btn-outline-warning btn-sm">
                                     <i class="bi bi-pencil"></i>
                                 </a>
+                                {% if ordem.status == 'ORCAMENTO_ENVIADO' or ordem.status == 'DIAGNOSTICO' %}
+                                <a href="{% url 'core:orcamento_publico' ordem.orcamento_token %}" 
+                                   class="btn btn-outline-info btn-sm" target="_blank">
+                                    <i class="bi bi-link-45deg"></i>
+                                </a>
+                                {% endif %}
                                 <button type="button" class="btn btn-outline-info btn-sm" 
                                         onclick="printOS({{ ordem.id }})">
                                     <i class="bi bi-printer"></i>

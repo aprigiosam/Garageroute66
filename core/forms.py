@@ -5,8 +5,8 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from .models import (
-    Cliente, OrdemServico, Veiculo, ItemOrdemServico, Agendamento,
-    CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
+    Cliente, OrdemServico, Veiculo, ItemOrdemServico, FotoOrdemServico,
+    Agendamento, CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
 )
 
 
@@ -189,6 +189,7 @@ class OrdemServicoForm(BaseBootstrapForm):
         model = OrdemServico
         fields = [
             'veiculo', 'descricao_problema', 'diagnostico', 'prioridade',
+            'requires_diagnosis', 'estimate_type', 'orcamento_total_estimado',
             'valor_mao_obra', 'valor_pecas', 'valor_terceiros', 'desconto',
             'km_entrada', 'prazo_entrega', 'responsavel_tecnico', 'observacoes'
         ]
@@ -233,13 +234,27 @@ class OrdemServicoForm(BaseBootstrapForm):
             valor = cleaned_data.get(campo)
             if valor and valor < 0:
                 self.add_error(campo, 'O valor não pode ser negativo.')
-        
+
         # Validar se o desconto não é maior que o total
         valor_total = sum(cleaned_data.get(campo, Decimal('0')) for campo in ['valor_mao_obra', 'valor_pecas', 'valor_terceiros'])
         desconto = cleaned_data.get('desconto', Decimal('0'))
         
         if desconto > valor_total:
             self.add_error('desconto', 'O desconto não pode ser maior que o valor total dos serviços.')
+
+        estimate_type = cleaned_data.get('estimate_type')
+        requires_diagnosis = cleaned_data.get('requires_diagnosis')
+        orcamento_total_estimado = cleaned_data.get('orcamento_total_estimado')
+
+        if estimate_type == OrdemServico.EstimateType.FIXED and not orcamento_total_estimado:
+            self.add_error('orcamento_total_estimado', 'Informe o valor estimado para serviços padrão.')
+
+        if estimate_type == OrdemServico.EstimateType.FIXED:
+            cleaned_data['requires_diagnosis'] = False
+        elif estimate_type == OrdemServico.EstimateType.PERSONALIZADO:
+            cleaned_data['requires_diagnosis'] = True
+        elif requires_diagnosis and not estimate_type:
+            cleaned_data['estimate_type'] = OrdemServico.EstimateType.PERSONALIZADO
         
         return cleaned_data
 
@@ -249,7 +264,7 @@ class OrdemServicoForm(BaseBootstrapForm):
         # Se for uma nova OS, definir status como ABERTA
         if not ordem_servico.pk:
             ordem_servico.status = OrdemServico.Status.ABERTA
-        
+
         if commit:
             ordem_servico.save()
         return ordem_servico
@@ -277,6 +292,39 @@ ItemOrdemServicoFormSet = forms.inlineformset_factory(
     extra=1,
     can_delete=True,
 )
+
+
+class FotoOrdemServicoForm(BaseBootstrapForm):
+    class Meta:
+        model = FotoOrdemServico
+        fields = ['imagem', 'legenda']
+        widgets = {
+            'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'legenda': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 120}),
+        }
+
+
+FotoOrdemServicoFormSet = forms.inlineformset_factory(
+    OrdemServico,
+    FotoOrdemServico,
+    form=FotoOrdemServicoForm,
+    extra=1,
+    can_delete=True,
+)
+
+
+class DiagnosticoOrdemServicoForm(BaseBootstrapForm):
+    class Meta:
+        model = OrdemServico
+        fields = [
+            'diagnostico', 'solucao', 'valor_mao_obra', 'valor_pecas',
+            'valor_terceiros', 'desconto', 'observacoes_internas'
+        ]
+        widgets = {
+            'diagnostico': forms.Textarea(attrs={'rows': 4}),
+            'solucao': forms.Textarea(attrs={'rows': 3}),
+            'observacoes_internas': forms.Textarea(attrs={'rows': 2}),
+        }
 
 
 class AgendamentoForm(BaseBootstrapForm):

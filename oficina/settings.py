@@ -9,6 +9,7 @@ Depois migre para PostgreSQL quando crescer.
 """
 
 import os
+import sys
 from pathlib import Path
 import environ
 
@@ -28,6 +29,7 @@ environ.Env.read_env(BASE_DIR / '.env')
 # SECURITY
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
+TESTING = 'test' in sys.argv
 
 # ALLOWED_HOSTS - aceita string separada por vírgula ou lista
 allowed_hosts_list = env.list('ALLOWED_HOSTS', default=[])
@@ -139,11 +141,10 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env.bool('DJANGO_SECURE_SSL_REDIRECT', default=not DEBUG and not TESTING)
+SESSION_COOKIE_SECURE = env.bool('DJANGO_SESSION_COOKIE_SECURE', default=not DEBUG and not TESTING)
+CSRF_COOKIE_SECURE = env.bool('DJANGO_CSRF_COOKIE_SECURE', default=not DEBUG and not TESTING)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # NO CACHE - usando memória local simples
 CACHES = {

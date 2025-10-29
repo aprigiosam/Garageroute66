@@ -248,6 +248,21 @@ class OrdemServicoModelTest(TestCase):
         self.assertTrue(ordem_vencida.prazo_vencido)
         self.assertFalse(ordem_no_prazo.prazo_vencido)
 
+    def test_registrar_aprovacao(self):
+        ordem = OrdemServico.objects.create(
+            veiculo=self.veiculo,
+            descricao_problema='Troca de óleo',
+            valor_mao_obra=Decimal('80.00'),
+            valor_pecas=Decimal('20.00'),
+            orcamento_total_estimado=Decimal('100.00'),
+            criado_por=self.user
+        )
+
+        ordem.registrar_aprovacao()
+        self.assertEqual(ordem.status, OrdemServico.Status.APROVADA)
+        self.assertEqual(ordem.orcamento_total_aprovado, Decimal('100.00'))
+        self.assertIsNotNone(ordem.orcamento_aprovado_em)
+
 
 class ItemOrdemServicoModelTest(TestCase):
     """Testes para o modelo ItemOrdemServico"""

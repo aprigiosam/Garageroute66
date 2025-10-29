@@ -19,7 +19,7 @@ from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento
 from .forms import (
     ClienteForm, OrdemServicoForm, VeiculoForm,
     FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
-    ItemOrdemServicoFormSet
+    ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm
 )
 from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
 from .backup_utils import create_db_backup
@@ -45,7 +45,7 @@ def dashboard(request):
         'veiculo__cliente'
     ).filter(
         prioridade=OrdemServico.Prioridade.URGENTE,
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
+        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
     )[:5]
 
     # Ordens vencidas
@@ -53,7 +53,7 @@ def dashboard(request):
         'veiculo__cliente'
     ).filter(
         prazo_entrega__lt=timezone.now(),
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_ANDAMENTO]
+        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
     )[:5]
 
     # Agendamentos de hoje
@@ -245,14 +245,31 @@ def listar_veiculos(request):
 
 @login_required
 def abrir_ordem_servico(request):
+    item_prefix = 'itens'
+    foto_prefix = 'fotos'
+
     if request.method == 'POST':
-        form = OrdemServicoForm(request.POST, user=request.user)
-        formset = ItemOrdemServicoFormSet(request.POST)
+        form = OrdemServicoForm(request.POST, request.FILES, user=request.user)
+        formset = ItemOrdemServicoFormSet(request.POST, prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, prefix=foto_prefix)
         
-        if form.is_valid() and formset.is_valid():
-            ordem_servico = form.save()
+        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
+            ordem_servico = form.save(commit=False)
+            estimate_type = form.cleaned_data.get('estimate_type')
+            if estimate_type == OrdemServico.EstimateType.FIXED:
+                ordem_servico.requires_diagnosis = False
+                ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
+                if not ordem_servico.orcamento_total_estimado:
+                    ordem_servico.orcamento_total_estimado = ordem_servico.calcular_total()
+            else:
+                ordem_servico.requires_diagnosis = True
+                ordem_servico.status = OrdemServico.Status.DIAGNOSTICO
+
+            ordem_servico.save()
             formset.instance = ordem_servico
             formset.save()
+            fotos_formset.instance = ordem_servico
+            fotos_formset.save()
             
             cliente_nome = (
                 ordem_servico.veiculo.cliente.nome
@@ -263,14 +280,24 @@ def abrir_ordem_servico(request):
                 request,
                 f"Ordem de serviço #{ordem_servico.numero_os} criada para {ordem_servico.veiculo.placa} ({cliente_nome}).",
             )
+            if ordem_servico.status == OrdemServico.Status.ORCAMENTO_ENVIADO:
+                public_url = request.build_absolute_uri(ordem_servico.public_approval_path)
+                messages.info(
+                    request,
+                    f"Link de aprovação enviado: {public_url}"
+                )
             return redirect(reverse('core:listar_ordens_servico'))
     else:
         form = OrdemServicoForm(user=request.user)
-        formset = ItemOrdemServicoFormSet()
+        formset = ItemOrdemServicoFormSet(prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(prefix=foto_prefix)
     
     context = {
         'form': form,
         'formset': formset,
+        'fotos_formset': fotos_formset,
+        'item_empty_form': formset.empty_form,
+        'foto_empty_form': fotos_formset.empty_form,
     }
     return render(request, 'core/abrir_ordem_servico.html', context)
 
@@ -279,7 +306,7 @@ def abrir_ordem_servico(request):
 def listar_ordens_servico(request):
     ordens = OrdemServico.objects.select_related(
         'veiculo__cliente', 'responsavel_tecnico'
-    ).prefetch_related('itens').order_by('-data_abertura')
+    ).prefetch_related('itens', 'fotos').order_by('-data_abertura')
     
     # Aplicar filtros
     form = FiltroOrdemServicoForm(request.GET)
@@ -322,13 +349,27 @@ def editar_ordem_servico(request, ordem_id):
     ordem = get_object_or_404(OrdemServico, id=ordem_id)
     status_anterior = ordem.status
     
+    item_prefix = 'itens'
+    foto_prefix = 'fotos'
+
     if request.method == 'POST':
-        form = OrdemServicoForm(request.POST, instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(request.POST, instance=ordem)
+        form = OrdemServicoForm(request.POST, request.FILES, instance=ordem, user=request.user)
+        formset = ItemOrdemServicoFormSet(request.POST, instance=ordem, prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, instance=ordem, prefix=foto_prefix)
         
-        if form.is_valid() and formset.is_valid():
-            ordem_servico = form.save()
+        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
+            ordem_servico = form.save(commit=False)
+            estimate_type = form.cleaned_data.get('estimate_type')
+            if estimate_type == OrdemServico.EstimateType.FIXED:
+                ordem_servico.requires_diagnosis = False
+                if ordem_servico.status == OrdemServico.Status.DIAGNOSTICO:
+                    ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
+            else:
+                ordem_servico.requires_diagnosis = True
+            ordem_servico.save()
+
             formset.save()
+            fotos_formset.save()
             
             # Registrar mudança de status se houve alteração
             status_novo = request.POST.get('status', ordem_servico.status)
@@ -342,11 +383,18 @@ def editar_ordem_servico(request, ordem_id):
                 ordem_servico.status = status_novo
                 ordem_servico.save()
             
+            if ordem_servico.orcamento_total_aprovado:
+                novo_total = ordem_servico.calcular_total()
+                limite = (ordem_servico.orcamento_total_aprovado or Decimal('0')) * Decimal('1.10')
+                if limite and novo_total > limite:
+                    ordem_servico.exigir_reaprovacao()
+
             messages.success(request, f"Ordem de serviço #{ordem_servico.numero_os} atualizada com sucesso.")
-            return redirect(reverse('core:listar_ordens_servico'))
+            return redirect(reverse('core:detalhes_ordem_servico', args=[ordem_servico.id]))
     else:
         form = OrdemServicoForm(instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(instance=ordem)
+        formset = ItemOrdemServicoFormSet(instance=ordem, prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(instance=ordem, prefix=foto_prefix)
     
     # Histórico de status
     historico = ordem.historico_status.all()[:10]
@@ -354,8 +402,11 @@ def editar_ordem_servico(request, ordem_id):
     context = {
         'form': form,
         'formset': formset,
+        'fotos_formset': fotos_formset,
         'ordem': ordem,
         'historico': historico,
+        'item_empty_form': formset.empty_form,
+        'foto_empty_form': fotos_formset.empty_form,
     }
     return render(request, 'core/editar_ordem_servico.html', context)
 
@@ -363,7 +414,7 @@ def editar_ordem_servico(request, ordem_id):
 @login_required
 def detalhes_ordem_servico(request, ordem_id):
     ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico'),
+        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico').prefetch_related('itens', 'fotos'),
         id=ordem_id
     )
     
@@ -373,8 +424,80 @@ def detalhes_ordem_servico(request, ordem_id):
     context = {
         'ordem': ordem,
         'historico': historico,
+        'fotos': ordem.fotos.all(),
+        'public_url': request.build_absolute_uri(ordem.public_approval_path),
     }
     return render(request, 'core/detalhes_ordem_servico.html', context)
+
+
+@login_required
+def mecanico_minhas_ordens(request):
+    ordens = OrdemServico.objects.select_related(
+        'veiculo__cliente', 'responsavel_tecnico'
+    ).prefetch_related('itens', 'fotos').filter(
+        responsavel_tecnico=request.user,
+        status__in=[
+            OrdemServico.Status.DIAGNOSTICO,
+            OrdemServico.Status.ORCAMENTO,
+            OrdemServico.Status.ORCAMENTO_ENVIADO,
+            OrdemServico.Status.APROVADA,
+            OrdemServico.Status.EM_EXECUCAO,
+        ]
+    ).order_by('status', '-prioridade', '-data_abertura')
+
+    return render(request, 'core/mecanico_minhas_os.html', {
+        'ordens': ordens,
+    })
+
+
+@login_required
+def mecanico_diagnostico(request, ordem_id):
+    ordem = get_object_or_404(
+        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico'),
+        id=ordem_id
+    )
+
+    if ordem.responsavel_tecnico != request.user:
+        messages.error(request, 'Você não tem permissão para editar esta ordem.')
+        return redirect('core:mecanico_minhas_ordens')
+
+    if ordem.status not in [OrdemServico.Status.DIAGNOSTICO, OrdemServico.Status.ORCAMENTO]:
+        messages.warning(request, 'Esta ordem não está em diagnóstico.')
+        return redirect('core:mecanico_minhas_ordens')
+
+    item_prefix = 'itens'
+    foto_prefix = 'fotos'
+
+    if request.method == 'POST':
+        form = DiagnosticoOrdemServicoForm(request.POST, instance=ordem, user=request.user)
+        formset = ItemOrdemServicoFormSet(request.POST, instance=ordem, prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, instance=ordem, prefix=foto_prefix)
+
+        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
+            ordem_servico = form.save(commit=False)
+            ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
+            ordem_servico.requires_diagnosis = False
+            if not ordem_servico.orcamento_total_estimado:
+                ordem_servico.orcamento_total_estimado = ordem_servico.calcular_total()
+            ordem_servico.save()
+            formset.save()
+            fotos_formset.save()
+
+            messages.success(request, 'Diagnóstico enviado para a recepção.')
+            return redirect('core:mecanico_minhas_ordens')
+    else:
+        form = DiagnosticoOrdemServicoForm(instance=ordem, user=request.user)
+        formset = ItemOrdemServicoFormSet(instance=ordem, prefix=item_prefix)
+        fotos_formset = FotoOrdemServicoFormSet(instance=ordem, prefix=foto_prefix)
+
+    return render(request, 'core/mecanico_diagnostico.html', {
+        'form': form,
+        'formset': formset,
+        'fotos_formset': fotos_formset,
+        'ordem': ordem,
+        'item_empty_form': formset.empty_form,
+        'foto_empty_form': fotos_formset.empty_form,
+    })
 
 
 @login_required
@@ -386,6 +509,11 @@ def atualizar_status_ordem(request, ordem_id):
     novo_status = request.POST.get('status')
     
     if novo_status in dict(OrdemServico.Status.choices):
+        if novo_status == OrdemServico.Status.EM_EXECUCAO and ordem.status != OrdemServico.Status.APROVADA:
+            return JsonResponse({'success': False, 'message': 'Só ordens aprovadas podem entrar em execução.'})
+        if novo_status == OrdemServico.Status.APROVADA and ordem.status != OrdemServico.Status.ORCAMENTO_ENVIADO:
+            return JsonResponse({'success': False, 'message': 'Envie o orçamento para o cliente antes de aprovar.'})
+
         # Registrar no histórico
         StatusHistorico.objects.create(
             ordem_servico=ordem,
@@ -402,7 +530,7 @@ def atualizar_status_ordem(request, ordem_id):
             'success': True,
             'message': f'Status atualizado para {ordem.get_status_display()}'
         })
-    
+
     return JsonResponse({'success': False, 'message': 'Status inválido'})
 
 
@@ -430,6 +558,29 @@ def agendamentos(request):
         'agendamentos': agendamentos_lista,
     }
     return render(request, 'core/agendamentos.html', context)
+
+
+def orcamento_publico(request, token):
+    ordem = get_object_or_404(
+        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico').prefetch_related('itens', 'fotos'),
+        orcamento_token=token
+    )
+
+    aprovado = False
+    mensagem = ''
+
+    if request.method == 'POST' and ordem.status in [OrdemServico.Status.ORCAMENTO_ENVIADO, OrdemServico.Status.ORCAMENTO]:
+        ordem.registrar_aprovacao()
+        aprovado = True
+        mensagem = 'Orçamento aprovado com sucesso! Nossa equipe dará sequência.'
+
+    contexto = {
+        'ordem': ordem,
+        'itens': ordem.itens.all(),
+        'aprovado': aprovado or ordem.status == OrdemServico.Status.APROVADA,
+        'mensagem': mensagem,
+    }
+    return render(request, 'core/public_orcamento.html', contexto)
 
 
 @login_required

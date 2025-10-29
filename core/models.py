@@ -1,4 +1,5 @@
 from decimal import Decimal
+import uuid
 from django.db import models
 from django.utils import timezone
 from django.core.validators import RegexValidator, MinValueValidator
@@ -164,9 +165,11 @@ class Veiculo(TimestampedModel):
 class OrdemServico(TimestampedModel):
     class Status(models.TextChoices):
         ABERTA = 'ABERTA', 'Aberta'
-        ORCAMENTO = 'ORCAMENTO', 'Orçamento'
+        DIAGNOSTICO = 'DIAGNOSTICO', 'Em diagnóstico'
+        ORCAMENTO = 'ORCAMENTO', 'Orçamento interno'
+        ORCAMENTO_ENVIADO = 'ORCAMENTO_ENVIADO', 'Orçamento enviado'
         APROVADA = 'APROVADA', 'Aprovada'
-        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em andamento'
+        EM_EXECUCAO = 'EM_ANDAMENTO', 'Em execução'
         AGUARDANDO_PECA = 'AGUARDANDO_PECA', 'Aguardando peça'
         CONCLUIDA = 'CONCLUIDA', 'Concluída'
         ENTREGUE = 'ENTREGUE', 'Entregue'
@@ -178,6 +181,10 @@ class OrdemServico(TimestampedModel):
         ALTA = 'ALTA', 'Alta'
         URGENTE = 'URGENTE', 'Urgente'
 
+    class EstimateType(models.TextChoices):
+        FIXED = 'FIXED', 'Serviço padrão (preço conhecido)'
+        PERSONALIZADO = 'PERSONALIZADO', 'Sob diagnóstico'
+
     veiculo = models.ForeignKey(Veiculo, verbose_name='Veículo', related_name='ordens_servico', on_delete=models.CASCADE)
     numero_os = models.CharField('Número OS', max_length=20, unique=True, blank=True)
     descricao_problema = models.TextField('Descrição do problema')
@@ -185,6 +192,13 @@ class OrdemServico(TimestampedModel):
     solucao = models.TextField('Solução aplicada', blank=True)
     status = models.CharField('Status', max_length=20, choices=Status.choices, default=Status.ABERTA)
     prioridade = models.CharField('Prioridade', max_length=20, choices=Prioridade.choices, default=Prioridade.NORMAL)
+    requires_diagnosis = models.BooleanField('Requer diagnóstico', default=False)
+    estimate_type = models.CharField('Tipo de orçamento', max_length=20, choices=EstimateType.choices, blank=True)
+    orcamento_total_estimado = models.DecimalField('Total estimado', max_digits=10, decimal_places=2, null=True, blank=True)
+    orcamento_total_aprovado = models.DecimalField('Total aprovado', max_digits=10, decimal_places=2, null=True, blank=True)
+    orcamento_aprovado_em = models.DateTimeField('Data de aprovação', null=True, blank=True)
+    orcamento_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    orcamento_requer_reaprovacao = models.BooleanField('Requer reaprovação?', default=False)
     
     # Datas
     data_abertura = models.DateTimeField('Data de abertura', default=timezone.now)
@@ -226,6 +240,7 @@ class OrdemServico(TimestampedModel):
             models.Index(fields=['status']),
             models.Index(fields=['data_abertura']),
             models.Index(fields=['veiculo', 'status']),
+            models.Index(fields=['orcamento_token']),
         ]
 
     def __str__(self) -> str:
@@ -255,11 +270,11 @@ class OrdemServico(TimestampedModel):
         
         # Atualizar datas baseadas no status
         now = timezone.now()
-        if self.status == self.Status.ORCAMENTO and not self.data_orcamento:
+        if self.status in [self.Status.ORCAMENTO, self.Status.ORCAMENTO_ENVIADO] and not self.data_orcamento:
             self.data_orcamento = now
         elif self.status == self.Status.APROVADA and not self.data_aprovacao:
             self.data_aprovacao = now
-        elif self.status == self.Status.EM_ANDAMENTO and not self.data_inicio:
+        elif self.status == self.Status.EM_EXECUCAO and not self.data_inicio:
             self.data_inicio = now
         elif self.status == self.Status.CONCLUIDA and not self.data_conclusao:
             self.data_conclusao = now
@@ -275,6 +290,27 @@ class OrdemServico(TimestampedModel):
             (self.valor_terceiros or Decimal('0.00')) - 
             (self.desconto or Decimal('0.00'))
         )
+
+    @property
+    def public_approval_path(self):
+        from django.urls import reverse
+        return reverse('core:orcamento_publico', args=[self.orcamento_token])
+
+    def registrar_aprovacao(self, total_aprovado=None):
+        if total_aprovado is None:
+            total_aprovado = self.orcamento_total_estimado or self.total
+        self.status = self.Status.APROVADA
+        self.orcamento_total_aprovado = total_aprovado
+        self.orcamento_aprovado_em = timezone.now()
+        self.orcamento_requer_reaprovacao = False
+        self.save(update_fields=[
+            'status', 'orcamento_total_aprovado', 'orcamento_aprovado_em', 'orcamento_requer_reaprovacao'
+        ])
+
+    def exigir_reaprovacao(self):
+        self.orcamento_requer_reaprovacao = True
+        self.status = self.Status.ORCAMENTO_ENVIADO
+        self.save(update_fields=['orcamento_requer_reaprovacao', 'status'])
 
     @property
     def tempo_execucao(self):
@@ -342,6 +378,26 @@ class ItemOrdemServico(models.Model):
         if self.peca:
             return f"{self.peca.codigo} - {self.peca.nome}"
         return self.descricao
+
+
+class FotoOrdemServico(TimestampedModel):
+    """Registro de fotos anexadas às ordens de serviço"""
+    ordem_servico = models.ForeignKey(
+        OrdemServico,
+        verbose_name='Ordem de Serviço',
+        related_name='fotos',
+        on_delete=models.CASCADE
+    )
+    imagem = models.ImageField('Imagem', upload_to='ordens/%Y/%m/')
+    legenda = models.CharField('Legenda', max_length=120, blank=True)
+
+    class Meta:
+        verbose_name = 'Foto da Ordem de Serviço'
+        verbose_name_plural = 'Fotos das Ordens de Serviço'
+        ordering = ['-criado_em']
+
+    def __str__(self) -> str:
+        return self.legenda or f"Foto OS #{self.ordem_servico.numero_os}"
 
 
 class StatusHistorico(models.Model):

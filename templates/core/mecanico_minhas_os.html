@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Minhas Ordens · Garage Route 66{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Minhas ordens</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-wrench-adjustable text-primary me-2"></i>Minhas ordens</h1>
+        <p class="text-muted mb-0">Ordens atribuídas a você para diagnóstico e execução.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    {% for ordem in ordens %}
+        <div class="col-xl-4 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>OS #{{ ordem.numero_os }}</strong>
+                    <span class="badge bg-secondary">{{ ordem.get_status_display }}</span>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>{{ ordem.veiculo.placa }}</strong> · {{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</p>
+                    <p class="text-muted small mb-3">Cliente: {{ ordem.cliente.nome }}</p>
+                    <p class="small mb-3">{{ ordem.descricao_problema|truncatewords:20 }}</p>
+                    <dl class="row small mb-3">
+                        <dt class="col-6 text-muted">Prioridade</dt>
+                        <dd class="col-6">{{ ordem.get_prioridade_display }}</dd>
+                        <dt class="col-6 text-muted">Aberta</dt>
+                        <dd class="col-6">{{ ordem.data_abertura|date:"d/m/Y H:i" }}</dd>
+                    </dl>
+                    <div class="d-grid gap-2">
+                        {% if ordem.status in [ordem.Status.DIAGNOSTICO, ordem.Status.ORCAMENTO] %}
+                            <a class="btn btn-outline-primary btn-sm" href="{% url 'core:mecanico_diagnostico' ordem.id %}"><i class="bi bi-clipboard-plus me-1"></i>Registrar diagnóstico</a>
+                        {% endif %}
+                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:detalhes_ordem_servico' ordem.id %}"><i class="bi bi-eye me-1"></i>Ver detalhes</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-clipboard-x fs-1 d-block mb-3"></i>
+                Nenhuma ordem atribuída para você.
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
 from core.forms import ClienteForm, VeiculoForm, OrdemServicoForm, validar_cpf
-from core.models import Cliente, Veiculo
+from core.models import Cliente, Veiculo, OrdemServico
 
 
 class ValidadorCpfTest(TestCase):
@@ -274,10 +274,21 @@ class OrdemServicoFormTest(TestCase):
             'veiculo': self.veiculo.id,
             'descricao_problema': 'Motor fazendo barulho',
             'prioridade': 'NORMAL',
+            'estimate_type': OrdemServico.EstimateType.FIXED,
+            'orcamento_total_estimado': '150.00',
             'valor_mao_obra': '100.00',
             'valor_pecas': '50.00',
             'valor_terceiros': '0.00',
             'desconto': '0.00',
+            'requires_diagnosis': '',
+            'itens-TOTAL_FORMS': '0',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'fotos-TOTAL_FORMS': '0',
+            'fotos-INITIAL_FORMS': '0',
+            'fotos-MIN_NUM_FORMS': '0',
+            'fotos-MAX_NUM_FORMS': '1000',
         }
 
         form = OrdemServicoForm(data=data, user=self.user)
@@ -293,6 +304,7 @@ class OrdemServicoFormTest(TestCase):
             'valor_pecas': '50.00',
             'valor_terceiros': '0.00',
             'desconto': '0.00',
+            'estimate_type': OrdemServico.EstimateType.PERSONALIZADO,
         }
 
         form = OrdemServicoForm(data=data, user=self.user)
@@ -309,6 +321,8 @@ class OrdemServicoFormTest(TestCase):
             'valor_pecas': '50.00',
             'valor_terceiros': '25.00',
             'desconto': '200.00',  # Desconto maior que total
+            'estimate_type': OrdemServico.EstimateType.FIXED,
+            'orcamento_total_estimado': '150.00',
         }
 
         form = OrdemServicoForm(data=data, user=self.user)
@@ -324,3 +338,21 @@ class OrdemServicoFormTest(TestCase):
         campos_obrigatorios = ['veiculo', 'descricao_problema']
         for campo in campos_obrigatorios:
             self.assertIn(campo, form.errors)
+
+    def test_form_servico_padrao_nao_requer_diagnostico(self):
+        data = {
+            'veiculo': self.veiculo.id,
+            'descricao_problema': 'Revisão rápida',
+            'prioridade': 'NORMAL',
+            'estimate_type': OrdemServico.EstimateType.FIXED,
+            'orcamento_total_estimado': '200.00',
+            'valor_mao_obra': '200.00',
+            'valor_pecas': '0.00',
+            'valor_terceiros': '0.00',
+            'desconto': '0.00',
+        }
+
+        form = OrdemServicoForm(data=data, user=self.user)
+        self.assertTrue(form.is_valid())
+        ordem = form.save(commit=False)
+        self.assertFalse(ordem.requires_diagnosis)

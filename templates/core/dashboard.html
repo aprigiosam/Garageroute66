@@ -120,9 +120,12 @@
                     <div class="d-flex align-items-center">
                         <span class="badge 
                             {% if status_info.status == 'ABERTA' %}bg-primary
-                            {% elif status_info.status == 'EM_ANDAMENTO' %}bg-warning
+                            {% elif status_info.status == 'DIAGNOSTICO' %}bg-secondary
+                            {% elif status_info.status == 'ORCAMENTO_ENVIADO' %}bg-info
+                            {% elif status_info.status == 'ORCAMENTO' or status_info.status == 'EM_ANDAMENTO' %}bg-warning text-dark
                             {% elif status_info.status == 'CONCLUIDA' %}bg-success
                             {% elif status_info.status == 'ENTREGUE' %}bg-info
+                            {% elif status_info.status == 'CANCELADA' %}bg-danger
                             {% else %}bg-secondary
                             {% endif %} me-2">
                             {{ status_info.count }}
@@ -132,9 +135,12 @@
                     <div class="progress flex-fill mx-3" style="height: 8px;">
                         <div class="progress-bar 
                             {% if status_info.status == 'ABERTA' %}bg-primary
-                            {% elif status_info.status == 'EM_ANDAMENTO' %}bg-warning
+                            {% elif status_info.status == 'DIAGNOSTICO' %}bg-secondary
+                            {% elif status_info.status == 'ORCAMENTO_ENVIADO' %}bg-info
+                            {% elif status_info.status == 'ORCAMENTO' or status_info.status == 'EM_ANDAMENTO' %}bg-warning text-dark
                             {% elif status_info.status == 'CONCLUIDA' %}bg-success
                             {% elif status_info.status == 'ENTREGUE' %}bg-info
+                            {% elif status_info.status == 'CANCELADA' %}bg-danger
                             {% else %}bg-secondary
                             {% endif %}" 
                             style="width: {% widthratio status_info.count stats.ordens_abertas 100 %}%">

@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from .models import (
     Cliente, OrdemServico, Veiculo, ItemOrdemServico,
-    StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
+    FotoOrdemServico, StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
     Peca, MovimentacaoEstoque
 )
 
@@ -26,6 +26,19 @@ class StatusHistoricoInline(admin.TabularInline):
     
     def has_add_permission(self, request, obj=None):
         return False
+
+
+class FotoOrdemServicoInline(admin.TabularInline):
+    model = FotoOrdemServico
+    extra = 1
+    fields = ('imagem_preview', 'imagem', 'legenda')
+    readonly_fields = ('imagem_preview',)
+
+    def imagem_preview(self, obj):
+        if obj.imagem:
+            return format_html('<img src="{}" style="max-height: 120px; border-radius: 6px;" />', obj.imagem.url)
+        return "-"
+    imagem_preview.short_description = 'Pré-visualização'
 
 
 @admin.register(Cliente)
@@ -155,7 +168,7 @@ class OrdemServicoAdmin(admin.ModelAdmin):
     )
     date_hierarchy = 'data_abertura'
     list_select_related = ('veiculo', 'veiculo__cliente', 'responsavel_tecnico')
-    inlines = [ItemOrdemServicoInline, StatusHistoricoInline]
+    inlines = [ItemOrdemServicoInline, FotoOrdemServicoInline, StatusHistoricoInline]
     
     fieldsets = (
         ('Informações Básicas', {

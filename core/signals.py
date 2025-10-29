@@ -306,7 +306,7 @@ def verificar_prazos_vencidos():
         prazo_entrega__lt=timezone.now(),
         status__in=[
             OrdemServico.Status.ABERTA,
-            OrdemServico.Status.EM_ANDAMENTO,
+            OrdemServico.Status.EM_EXECUCAO,
             OrdemServico.Status.AGUARDANDO_PECA
         ]
     )

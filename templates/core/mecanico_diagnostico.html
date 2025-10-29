@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnóstico OS #{{ ordem.numero_os }}{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{% url 'core:mecanico_minhas_ordens' %}">Minhas ordens</a></li>
+<li class="breadcrumb-item active">Diagnóstico</li>
+{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-clipboard-plus text-primary me-2"></i>Diagnóstico #{{ ordem.numero_os }}</h1>
+        <p class="text-muted mb-0">{{ ordem.veiculo.placa }} · {{ ordem.veiculo.marca }} {{ ordem.veiculo.modelo }}</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'core:mecanico_minhas_ordens' %}"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header"><strong>Resumo do atendimento</strong></div>
+                <div class="card-body">
+                    <p><strong>Problema relatado:</strong> {{ ordem.descricao_problema }}</p>
+                    <p class="mb-0"><strong>Cliente:</strong> {{ ordem.cliente.nome }} · {{ ordem.cliente.telefone }}</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><strong>Diagnóstico</strong></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.diagnostico.label }}</label>
+                        {{ form.diagnostico }}
+                        {% for error in form.diagnostico.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.solucao.label }}</label>
+                        {{ form.solucao }}
+                        {% for error in form.solucao.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.observacoes_internas.label }}</label>
+                        {{ form.observacoes_internas }}
+                        {% for error in form.observacoes_internas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><strong>Custo estimado</strong></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">{{ form.valor_mao_obra.label }}</label>
+                            {{ form.valor_mao_obra }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ form.valor_pecas.label }}</label>
+                            {{ form.valor_pecas }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ form.valor_terceiros.label }}</label>
+                            {{ form.valor_terceiros }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{{ form.desconto.label }}</label>
+                            {{ form.desconto }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Itens sugeridos</strong>
+                    <button class="btn btn-sm btn-outline-primary" type="button" id="add-item"><i class="bi bi-plus-circle me-1"></i>Novo item</button>
+                </div>
+                <div class="card-body">
+                    {{ formset.management_form }}
+                    <div id="itens-container" data-prefix="{{ formset.prefix }}">
+                        {% for item_form in formset %}
+                            <div class="border rounded p-3 mb-3 formset-item">
+                                {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Descrição</label>
+                                        {{ item_form.descricao }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Quantidade</label>
+                                        {{ item_form.quantidade }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Valor unitário</label>
+                                        {{ item_form.valor_unitario }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted mb-0">Adicione itens e serviços sugeridos.</p>
+                        {% endfor %}
+                    </div>
+                    <template id="item-empty-template">
+                        <div class="border rounded p-3 mb-3 formset-item">
+                            {% for hidden in item_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                            <div class="row g-3 align-items-end">
+                                {% for field in item_empty_form.visible_fields %}
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                        {{ field }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Fotos de diagnóstico</strong>
+                    <button class="btn btn-sm btn-outline-primary" type="button" id="add-foto"><i class="bi bi-image me-1"></i>Adicionar foto</button>
+                </div>
+                <div class="card-body">
+                    {{ fotos_formset.management_form }}
+                    <div id="fotos-container" class="row g-3" data-prefix="{{ fotos_formset.prefix }}">
+                        {% for foto_form in fotos_formset %}
+                            <div class="col-md-6 formset-item">
+                                <div class="border rounded p-3 h-100">
+                                    {% for hidden in foto_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                    <div class="mb-3">
+                                        <label class="form-label">{{ foto_form.imagem.label }}</label>
+                                        {{ foto_form.imagem }}
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">{{ foto_form.legenda.label }}</label>
+                                        {{ foto_form.legenda }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted mb-0">Sem fotos anexadas.</p>
+                        {% endfor %}
+                    </div>
+                    <template id="foto-empty-template">
+                        <div class="col-md-6 formset-item">
+                            <div class="border rounded p-3 h-100">
+                                {% for hidden in foto_empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div class="mb-3">
+                                    <label class="form-label" for="{{ foto_empty_form.imagem.id_for_label }}">Imagem</label>
+                                    {{ foto_empty_form.imagem }}
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="{{ foto_empty_form.legenda.id_for_label }}">Legenda</label>
+                                    {{ foto_empty_form.legenda }}
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <a class="btn btn-outline-secondary" href="{% url 'core:mecanico_minhas_ordens' %}">Cancelar</a>
+                <button class="btn btn-primary" type="submit"><i class="bi bi-send me-1"></i>Enviar diagnóstico</button>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header"><strong><i class="bi bi-info-square me-2"></i>Informações rápidas</strong></div>
+                <div class="card-body small">
+                    <p class="mb-1"><strong>Status atual:</strong> {{ ordem.get_status_display }}</p>
+                    <p class="mb-1"><strong>Entrada:</strong> {{ ordem.data_abertura|date:"d/m/Y H:i" }}</p>
+                    <p class="mb-0 text-muted">Após enviar o diagnóstico, a recepção revisará e enviará ao cliente.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    function initDynamicFormset(addButtonId, containerId) {
+        const addButton = document.getElementById(addButtonId);
+        const container = document.getElementById(containerId);
+        if (!addButton || !container) {
+            return;
+        }
+
+        const prefix = container.dataset.prefix;
+        const totalFormsInput = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+        const templateElement = document.getElementById(`${addButtonId === 'add-item' ? 'item' : 'foto'}-empty-template`);
+
+        addButton.addEventListener('click', function () {
+            if (!templateElement) {
+                return;
+            }
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = templateElement.innerHTML.trim();
+            const newElement = wrapper.firstElementChild;
+
+            const currentIndex = parseInt(totalFormsInput.value, 10);
+            const regex = new RegExp(`${prefix}-__prefix__`, 'g');
+            newElement.innerHTML = newElement.innerHTML.replace(regex, `${prefix}-${currentIndex}`);
+
+            newElement.querySelectorAll('input, textarea, select').forEach(el => {
+                if (el.type === 'checkbox') {
+                    el.checked = false;
+                } else if (el.type !== 'file') {
+                    el.value = '';
+                }
+            });
+
+            container.appendChild(newElement);
+            totalFormsInput.value = currentIndex + 1;
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initDynamicFormset('add-item', 'itens-container');
+        initDynamicFormset('add-foto', 'fotos-container');
+    });
+</script>
+{% endblock %}

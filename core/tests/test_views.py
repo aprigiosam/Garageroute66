@@ -288,7 +288,60 @@ class OrdemServicoViewsTest(TestCase):
         """Testa exibição do formulário de abertura de OS"""
         response = self.client.get(reverse('core:abrir_ordem_servico'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'form')
+        self.assertContains(response, 'Abrir Ordem de Serviço')
+
+    def test_abrir_ordem_servico_post_servico_padrao(self):
+        data = {
+            'veiculo': self.veiculo.id,
+            'descricao_problema': 'Troca de óleo',
+            'prioridade': 'NORMAL',
+            'estimate_type': OrdemServico.EstimateType.FIXED,
+            'orcamento_total_estimado': '180.00',
+            'valor_mao_obra': '180.00',
+            'valor_pecas': '0.00',
+            'valor_terceiros': '0.00',
+            'desconto': '0.00',
+            'itens-TOTAL_FORMS': '0',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'fotos-TOTAL_FORMS': '0',
+            'fotos-INITIAL_FORMS': '0',
+            'fotos-MIN_NUM_FORMS': '0',
+            'fotos-MAX_NUM_FORMS': '1000',
+        }
+
+        response = self.client.post(reverse('core:abrir_ordem_servico'), data)
+        self.assertEqual(response.status_code, 302)
+        ordem = OrdemServico.objects.latest('id')
+        self.assertEqual(ordem.status, OrdemServico.Status.ORCAMENTO_ENVIADO)
+        self.assertFalse(ordem.requires_diagnosis)
+
+    def test_abrir_ordem_servico_post_diagnostico(self):
+        data = {
+            'veiculo': self.veiculo.id,
+            'descricao_problema': 'Ruído na suspensão dianteira',
+            'prioridade': 'ALTA',
+            'estimate_type': OrdemServico.EstimateType.PERSONALIZADO,
+            'valor_mao_obra': '0.00',
+            'valor_pecas': '0.00',
+            'valor_terceiros': '0.00',
+            'desconto': '0.00',
+            'itens-TOTAL_FORMS': '0',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'fotos-TOTAL_FORMS': '0',
+            'fotos-INITIAL_FORMS': '0',
+            'fotos-MIN_NUM_FORMS': '0',
+            'fotos-MAX_NUM_FORMS': '1000',
+        }
+
+        response = self.client.post(reverse('core:abrir_ordem_servico'), data)
+        self.assertEqual(response.status_code, 302)
+        ordem = OrdemServico.objects.latest('id')
+        self.assertEqual(ordem.status, OrdemServico.Status.DIAGNOSTICO)
+        self.assertTrue(ordem.requires_diagnosis)
 
     def test_detalhes_ordem_servico(self):
         """Testa visualização de detalhes da OS"""
@@ -361,6 +414,55 @@ class ApiViewsTest(TestCase):
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['placa'], 'ABC-1234')
+
+
+class PublicOrcamentoViewTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='publicuser',
+            email='public@test.com',
+            password='testpass123'
+        )
+        self.cliente = Cliente.objects.create(
+            nome='Cliente Público',
+            telefone='(11) 99999-9999',
+            email='publico@email.com',
+            endereco='Rua Cliente, 123',
+            cpf='123.456.789-10',
+            criado_por=self.user
+        )
+        self.veiculo = Veiculo.objects.create(
+            cliente=self.cliente,
+            placa='XYZ-1234',
+            marca='Fiat',
+            modelo='Pulse',
+            ano=2022,
+            cor='Azul',
+            chassi='12345678901234568',
+            km_atual=10000,
+            criado_por=self.user
+        )
+        self.ordem = OrdemServico.objects.create(
+            veiculo=self.veiculo,
+            descricao_problema='Revisão completa',
+            valor_mao_obra=Decimal('200.00'),
+            valor_pecas=Decimal('100.00'),
+            orcamento_total_estimado=Decimal('300.00'),
+            status=OrdemServico.Status.ORCAMENTO_ENVIADO,
+            criado_por=self.user
+        )
+
+    def test_exibir_orcamento_publico(self):
+        response = self.client.get(reverse('core:orcamento_publico', args=[self.ordem.orcamento_token]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Orçamento OS')
+
+    def test_aprovar_orcamento_publico(self):
+        response = self.client.post(reverse('core:orcamento_publico', args=[self.ordem.orcamento_token]))
+        self.assertEqual(response.status_code, 200)
+        self.ordem.refresh_from_db()
+        self.assertEqual(self.ordem.status, OrdemServico.Status.APROVADA)
 
 
 class LoginRequiredTest(TestCase):
