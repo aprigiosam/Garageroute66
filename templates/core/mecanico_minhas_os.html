@@ -60,7 +60,7 @@
                                     A recepção ainda não confirmou o sinal mínimo de R$ {{ ordem.valor_minimo_sinal|floatformat:2 }} (recebido: R$ {{ ordem.total_pago|floatformat:2 }}).
                                 </div>
                             {% endif %}
-                        {% elif ordem.status == 'EM_EXECUCAO' %}
+                        {% elif ordem.status == 'EM_ANDAMENTO' %}
                             <form method="post" action="{% url 'core:mecanico_atualizar_status' ordem.id %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="acao" value="aguardar_peca">
