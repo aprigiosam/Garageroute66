@@ -3,6 +3,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from django.core.validators import RegexValidator, MinValueValidator
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db.models import Count, Sum, Prefetch
@@ -328,6 +329,21 @@ class OrdemServico(TimestampedModel):
     def cliente(self):
         return self.veiculo.cliente if self.veiculo else None
 
+    @property
+    def total_pago(self):
+        return self.pagamentos.filter(
+            status=PagamentoOrdemServico.Status.PAGO
+        ).aggregate(total=Sum('valor'))['total'] or Decimal('0.00')
+
+    @property
+    def saldo_pendente(self):
+        total_base = self.orcamento_total_aprovado or self.total
+        return max(Decimal('0.00'), total_base - (self.total_pago or Decimal('0.00')))
+
+    @property
+    def quitada(self):
+        return self.saldo_pendente == Decimal('0.00')
+
 
 class ItemOrdemServico(models.Model):
     """Itens/serviços específicos de uma ordem de serviço"""
@@ -398,6 +414,167 @@ class FotoOrdemServico(TimestampedModel):
 
     def __str__(self) -> str:
         return self.legenda or f"Foto OS #{self.ordem_servico.numero_os}"
+
+
+class PagamentoOrdemServico(TimestampedModel):
+    class FormaPagamento(models.TextChoices):
+        PIX = 'PIX', 'PIX'
+        CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de crédito'
+        CARTAO_DEBITO = 'CARTAO_DEBITO', 'Cartão de débito'
+        DINHEIRO = 'DINHEIRO', 'Dinheiro'
+        TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência'
+        BOLETO = 'BOLETO', 'Boleto'
+        OUTROS = 'OUTROS', 'Outros'
+
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PAGO = 'PAGO', 'Pago'
+        ESTORNADO = 'ESTORNADO', 'Estornado'
+
+    ordem_servico = models.ForeignKey(
+        OrdemServico,
+        verbose_name='Ordem de Serviço',
+        related_name='pagamentos',
+        on_delete=models.CASCADE,
+    )
+    valor = models.DecimalField('Valor', max_digits=10, decimal_places=2)
+    valor_recebido = models.DecimalField('Valor recebido', max_digits=10, decimal_places=2, null=True, blank=True)
+    troco = models.DecimalField('Troco', max_digits=10, decimal_places=2, null=True, blank=True)
+    forma_pagamento = models.CharField('Forma de pagamento', max_length=20, choices=FormaPagamento.choices)
+    parcelas = models.PositiveSmallIntegerField('Parcelas', null=True, blank=True)
+    status = models.CharField('Status', max_length=15, choices=Status.choices, default=Status.PAGO)
+    data_pagamento = models.DateTimeField('Data do pagamento', default=timezone.now)
+    recebido_por = models.ForeignKey(
+        User,
+        verbose_name='Recebido por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagamentos_recebidos'
+    )
+    observacao = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Pagamento'
+        verbose_name_plural = 'Pagamentos'
+        ordering = ['-data_pagamento']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['forma_pagamento']),
+            models.Index(fields=['data_pagamento']),
+        ]
+
+    def __str__(self) -> str:
+        return f"Pagamento OS {self.ordem_servico.numero_os} - {self.valor}"
+
+    def clean(self):
+        super().clean()
+        if self.forma_pagamento != self.FormaPagamento.DINHEIRO:
+            self.valor_recebido = None
+            self.troco = None
+        elif self.valor_recebido and self.valor_recebido < self.valor:
+            raise ValidationError({'valor_recebido': 'O valor recebido não pode ser menor que o valor do pagamento.'})
+
+
+class Caixa(TimestampedModel):
+    class Status(models.TextChoices):
+        ABERTO = 'ABERTO', 'Aberto'
+        FECHADO = 'FECHADO', 'Fechado'
+
+    data_abertura = models.DateTimeField('Data de abertura', default=timezone.now)
+    data_fechamento = models.DateTimeField('Data de fechamento', null=True, blank=True)
+    status = models.CharField('Status', max_length=10, choices=Status.choices, default=Status.ABERTO)
+    saldo_inicial = models.DecimalField('Saldo inicial', max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    saldo_final = models.DecimalField('Saldo final', max_digits=10, decimal_places=2, null=True, blank=True)
+    aberto_por = models.ForeignKey(
+        User,
+        verbose_name='Aberto por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='caixas_abertos'
+    )
+    fechado_por = models.ForeignKey(
+        User,
+        verbose_name='Fechado por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='caixas_fechados'
+    )
+    observacoes = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Caixa'
+        verbose_name_plural = 'Caixas'
+        ordering = ['-data_abertura']
+
+    def __str__(self) -> str:
+        return f"Caixa {self.data_abertura.strftime('%d/%m/%Y')}"
+
+    @property
+    def total_entradas(self):
+        from django.db.models import Sum
+
+        return self.lancamentos.filter(tipo=LancamentoCaixa.TipoLancamento.ENTRADA).aggregate(
+            total=Sum('valor')
+        )['total'] or Decimal('0.00')
+
+    @property
+    def total_saidas(self):
+        from django.db.models import Sum
+
+        return self.lancamentos.filter(tipo=LancamentoCaixa.TipoLancamento.SAIDA).aggregate(
+            total=Sum('valor')
+        )['total'] or Decimal('0.00')
+
+
+class LancamentoCaixa(TimestampedModel):
+    class TipoLancamento(models.TextChoices):
+        ENTRADA = 'ENTRADA', 'Entrada'
+        SAIDA = 'SAIDA', 'Saída'
+
+    caixa = models.ForeignKey(
+        Caixa,
+        verbose_name='Caixa',
+        related_name='lancamentos',
+        on_delete=models.CASCADE
+    )
+    pagamento = models.ForeignKey(
+        PagamentoOrdemServico,
+        verbose_name='Pagamento relacionado',
+        related_name='lancamentos',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    tipo = models.CharField('Tipo', max_length=10, choices=TipoLancamento.choices)
+    descricao = models.CharField('Descrição', max_length=255)
+    valor = models.DecimalField('Valor', max_digits=10, decimal_places=2)
+    forma_pagamento = models.CharField('Forma de pagamento', max_length=20, choices=PagamentoOrdemServico.FormaPagamento.choices)
+    registrado_por = models.ForeignKey(
+        User,
+        verbose_name='Registrado por',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lancamentos_registrados'
+    )
+    data_lancamento = models.DateTimeField('Data do lançamento', default=timezone.now)
+    observacao = models.TextField('Observação', blank=True)
+
+    class Meta:
+        verbose_name = 'Lançamento de Caixa'
+        verbose_name_plural = 'Lançamentos de Caixa'
+        ordering = ['-data_lancamento']
+        indexes = [
+            models.Index(fields=['tipo']),
+            models.Index(fields=['forma_pagamento']),
+            models.Index(fields=['data_lancamento']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} - {self.valor}"
 
 
 class StatusHistorico(models.Model):

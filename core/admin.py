@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from .models import (
     Cliente, OrdemServico, Veiculo, ItemOrdemServico,
-    FotoOrdemServico, StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
+    FotoOrdemServico, PagamentoOrdemServico, Caixa, LancamentoCaixa,
+    StatusHistorico, Agendamento, CategoriaPeca, Fornecedor,
     Peca, MovimentacaoEstoque
 )
 
@@ -39,6 +40,19 @@ class FotoOrdemServicoInline(admin.TabularInline):
             return format_html('<img src="{}" style="max-height: 120px; border-radius: 6px;" />', obj.imagem.url)
         return "-"
     imagem_preview.short_description = 'Pré-visualização'
+
+
+class PagamentoInline(admin.TabularInline):
+    model = PagamentoOrdemServico
+    extra = 0
+    fields = (
+        'data_pagamento', 'valor', 'forma_pagamento', 'status',
+        'valor_recebido', 'troco', 'parcelas', 'recebido_por', 'observacao'
+    )
+    readonly_fields = ('data_pagamento', 'valor_recebido', 'troco')
+
+    def has_add_permission(self, request, obj):
+        return False
 
 
 @admin.register(Cliente)
@@ -168,7 +182,7 @@ class OrdemServicoAdmin(admin.ModelAdmin):
     )
     date_hierarchy = 'data_abertura'
     list_select_related = ('veiculo', 'veiculo__cliente', 'responsavel_tecnico')
-    inlines = [ItemOrdemServicoInline, FotoOrdemServicoInline, StatusHistoricoInline]
+    inlines = [ItemOrdemServicoInline, FotoOrdemServicoInline, PagamentoInline, StatusHistoricoInline]
     
     fieldsets = (
         ('Informações Básicas', {
@@ -348,6 +362,65 @@ class AgendamentoAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+@admin.register(PagamentoOrdemServico)
+class PagamentoOrdemServicoAdmin(admin.ModelAdmin):
+    list_display = (
+        'ordem_servico', 'valor', 'forma_pagamento', 'status',
+        'data_pagamento', 'recebido_por'
+    )
+    list_filter = ('status', 'forma_pagamento', 'data_pagamento')
+    search_fields = ('ordem_servico__numero_os', 'ordem_servico__veiculo__placa', 'ordem_servico__veiculo__cliente__nome')
+    autocomplete_fields = ['ordem_servico', 'recebido_por']
+    readonly_fields = ('criado_em', 'atualizado_em', 'criado_por', 'atualizado_por')
+
+
+@admin.register(Caixa)
+class CaixaAdmin(admin.ModelAdmin):
+    list_display = (
+        '__str__', 'status', 'data_abertura', 'data_fechamento',
+        'saldo_inicial', 'saldo_final', 'aberto_por', 'fechado_por'
+    )
+    list_filter = ('status', 'data_abertura', 'aberto_por')
+    search_fields = ('observacoes',)
+    readonly_fields = ('total_entradas_admin', 'total_saidas_admin', 'criado_em', 'atualizado_em')
+
+    fieldsets = (
+        ('Período', {
+            'fields': ('data_abertura', 'data_fechamento', 'status')
+        }),
+        ('Responsáveis', {
+            'fields': ('aberto_por', 'fechado_por')
+        }),
+        ('Totais', {
+            'fields': ('saldo_inicial', 'saldo_final', 'total_entradas_admin', 'total_saidas_admin')
+        }),
+        ('Observações', {
+            'fields': ('observacoes',)
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def total_entradas_admin(self, obj):
+        return f"R$ {obj.total_entradas:,.2f}"
+    total_entradas_admin.short_description = 'Total entradas'
+
+    def total_saidas_admin(self, obj):
+        return f"R$ {obj.total_saidas:,.2f}"
+    total_saidas_admin.short_description = 'Total saídas'
+
+
+@admin.register(LancamentoCaixa)
+class LancamentoCaixaAdmin(admin.ModelAdmin):
+    list_display = (
+        'caixa', 'tipo', 'valor', 'forma_pagamento', 'data_lancamento', 'registrado_por'
+    )
+    list_filter = ('tipo', 'forma_pagamento', 'data_lancamento')
+    search_fields = ('descricao', 'observacao', 'caixa__observacoes')
+    autocomplete_fields = ['caixa', 'pagamento', 'registrado_por']
+    readonly_fields = ('criado_em', 'atualizado_em')
 @admin.register(CategoriaPeca)
 class CategoriaPecaAdmin(admin.ModelAdmin):
     list_display = ('nome', 'total_pecas_count', 'ativo', 'criado_em')
