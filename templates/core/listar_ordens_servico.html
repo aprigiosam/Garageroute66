@@ -131,7 +131,7 @@
                 </thead>
                 <tbody>
                     {% for ordem in ordens %}
-                    <tr class="{% if ordem.prazo_vencido %}table-warning{% endif %}">
+                    <tr class="align-middle {% if ordem.prazo_vencido %}table-warning{% endif %}">
                         <td>
                             <strong>{{ ordem.numero_os }}</strong>
                             {% if ordem.prazo_vencido %}
@@ -148,11 +148,11 @@
                         <td>
                             <div>
                                 {{ ordem.veiculo.cliente.nome }}<br>
-                                <small class="text-muted">{{ ordem.veiculo.cliente.telefone }}</small>
+                            <span class="badge bg-slate-soft text-uppercase">{{ ordem.veiculo.cliente.telefone }}</span>
                             </div>
                         </td>
                         <td>
-                            <select class="form-select form-select-sm status-select" 
+                            <select class="form-select form-select-sm status-select shadow-sm" 
                                     data-ordem-id="{{ ordem.id }}" 
                                     data-current-status="{{ ordem.status }}">
                                 {% for value, label in form.status.field.choices %}
@@ -165,23 +165,30 @@
                             </select>
                         </td>
                         <td>
-                            <span class="badge 
-                                {% if ordem.prioridade == 'URGENTE' %}bg-danger
-                                {% elif ordem.prioridade == 'ALTA' %}bg-warning
-                                {% elif ordem.prioridade == 'NORMAL' %}bg-primary
-                                {% else %}bg-secondary
+                            <span class="badge
+                                {% if ordem.prioridade == 'URGENTE' %}bg-danger-soft text-danger-emphasis
+                                {% elif ordem.prioridade == 'ALTA' %}bg-warning-soft text-warning-emphasis
+                                {% elif ordem.prioridade == 'NORMAL' %}bg-primary-soft text-primary-emphasis
+                                {% else %}bg-slate-soft text-slate-emphasis
                                 {% endif %}">
                                 {{ ordem.get_prioridade_display }}
                             </span>
                         </td>
                         <td>
-                            <div>
-                                {{ ordem.data_abertura|date:"d/m/Y" }}<br>
-                                <small class="text-muted">{{ ordem.data_abertura|date:"H:i" }}</small>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="fw-semibold">{{ ordem.data_abertura|date:"d/m/Y" }}</span>
+                                <span class="badge bg-slate-soft">{{ ordem.data_abertura|date:"H:i" }}</span>
                             </div>
                         </td>
                         <td>
-                            <strong>R$ {{ ordem.total|floatformat:2 }}</strong>
+                            <div class="d-flex flex-column">
+                                <strong>R$ {{ ordem.total|floatformat:2 }}</strong>
+                                {% if ordem.saldo_pendente %}
+                                    <span class="text-danger-emphasis small">Saldo: R$ {{ ordem.saldo_pendente|floatformat:2 }}</span>
+                                {% else %}
+                                    <span class="text-success-emphasis small">Quitada</span>
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm">
@@ -243,12 +250,12 @@
                                     </p>
                                 </div>
                                 <span class="badge 
-                                    {% if ordem.status == 'ABERTA' %}bg-primary
-                                    {% elif ordem.status == 'EM_ANDAMENTO' %}bg-warning
-                                    {% elif ordem.status == 'CONCLUIDA' %}bg-success
-                                    {% elif ordem.status == 'ENTREGUE' %}bg-info
-                                    {% else %}bg-secondary
-                                    {% endif %}">
+                        {% if ordem.status == 'ABERTA' %}bg-primary-soft text-primary-emphasis
+                        {% elif ordem.status == 'EM_ANDAMENTO' %}bg-warning-soft text-warning-emphasis
+                        {% elif ordem.status == 'CONCLUIDA' %}bg-success-soft text-success-emphasis
+                        {% elif ordem.status == 'ENTREGUE' %}bg-slate-soft text-slate-emphasis
+                        {% else %}bg-danger-soft text-danger-emphasis
+                        {% endif %}">
                                     {{ ordem.get_status_display }}
                                 </span>
                             </div>

@@ -281,41 +281,48 @@
                 </thead>
                 <tbody>
                     {% for veiculo in veiculos %}
-                    <tr>
+                    <tr class="align-middle">
                         <td>
-                            <strong>{{ veiculo.placa }}</strong>
+                            <strong class="text-uppercase">{{ veiculo.placa }}</strong>
                             {% if veiculo.batido %}
                                 <i class="bi bi-exclamation-triangle text-warning ms-1" title="Veículo batido"></i>
                             {% endif %}
                         </td>
                         <td>
-                            <div>
-                                <strong>{{ veiculo.marca }} {{ veiculo.modelo }}</strong><br>
-                                <small class="text-muted">{{ veiculo.ano }} - {{ veiculo.cor }}</small>
+                            <div class="d-flex flex-column gap-1">
+                                <strong>{{ veiculo.marca }} {{ veiculo.modelo }}</strong>
+                                <span class="badge bg-slate-soft">{{ veiculo.ano }} · {{ veiculo.cor }}</span>
                             </div>
                         </td>
                         <td>
-                            <div>
-                                {{ veiculo.cliente.nome }}<br>
-                                <small class="text-muted">{{ veiculo.cliente.telefone }}</small>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="fw-semibold">{{ veiculo.cliente.nome }}</span>
+                                <span class="badge bg-slate-soft">{{ veiculo.cliente.telefone }}</span>
                             </div>
                         </td>
                         <td>
                             <span class="badge 
-                                {% if veiculo.tipo_veiculo == 'CARRO' %}bg-primary
-                                {% elif veiculo.tipo_veiculo == 'MOTO' %}bg-warning text-dark
-                                {% elif veiculo.tipo_veiculo == 'CAMINHAO' %}bg-danger
-                                {% else %}bg-info
+                                {% if veiculo.tipo_veiculo == 'CARRO' %}bg-primary-soft text-primary-emphasis
+                                {% elif veiculo.tipo_veiculo == 'MOTO' %}bg-warning-soft text-warning-emphasis
+                                {% elif veiculo.tipo_veiculo == 'CAMINHAO' %}bg-danger-soft text-danger-emphasis
+                                {% else %}bg-slate-soft text-slate-emphasis
                                 {% endif %}">
                                 {{ veiculo.get_tipo_veiculo_display }}
                             </span>
                         </td>
-                        <td>{{ veiculo.km_atual|floatformat:0 }}</td>
                         <td>
-                            <span class="badge bg-info">{{ veiculo.ordens_servico.count }}</span>
+                            <div class="d-flex flex-column">
+                                <strong>{{ veiculo.km_atual|floatformat:0 }}</strong>
+                                {% if veiculo.ordens_servico.last %}
+                                    <span class="small text-muted">Última: {{ veiculo.ordens_servico.last.data_abertura|date:"d/m" }}</span>
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
-                            <span class="badge {% if veiculo.ativo %}bg-success{% else %}bg-secondary{% endif %}">
+                            <span class="badge bg-secondary-soft text-secondary">{{ veiculo.ordens_servico.count }}</span>
+                        </td>
+                        <td>
+                            <span class="badge {% if veiculo.ativo %}bg-success-soft text-success-emphasis{% else %}bg-danger-soft text-danger-emphasis{% endif %}">
                                 {% if veiculo.ativo %}Ativo{% else %}Inativo{% endif %}
                             </span>
                         </td>
