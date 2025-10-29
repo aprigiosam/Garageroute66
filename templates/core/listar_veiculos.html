@@ -2,6 +2,33 @@
 
 {% block title %}Veículos · Oficina Pro{% endblock %}
 
+{% block extra_css %}
+{{ block.super }}
+<style>
+@media (max-width: 991.98px) {
+    #cards-view-veiculos .card {
+        border-radius: 18px;
+    }
+    #cards-view-veiculos .card-body {
+        padding: 1.25rem;
+    }
+}
+@media (max-width: 767.98px) {
+    .mobile-floating-action {
+        position: fixed;
+        bottom: 86px;
+        right: 16px;
+        z-index: 1050;
+        border-radius: 999px;
+        box-shadow: 0 12px 30px rgba(193, 39, 45, 0.35);
+        padding: 0.95rem 1.3rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+    }
+}
+</style>
+{% endblock %}
+
 {% block breadcrumb_items %}
 <li class="breadcrumb-item active">Veículos</li>
 {% endblock %}
@@ -25,19 +52,22 @@
 {% block content %}
 <!-- Filtros de Busca -->
 <div class="card mb-4">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="card-title mb-0">
             <i class="bi bi-funnel me-2"></i>Filtros
         </h6>
+        <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#veiculosFiltroCollapse" aria-expanded="false" aria-controls="veiculosFiltroCollapse">
+            <i class="bi bi-sliders"></i>
+        </button>
     </div>
-    <div class="card-body">
+    <div id="veiculosFiltroCollapse" class="card-body collapse">
         <form method="get" class="row g-3">
-            <div class="col-md-4">
+            <div class="col-12 col-md-6 col-lg-4">
                 <input type="text" name="busca" class="form-control" 
                        placeholder="Placa, marca, modelo, chassi..." 
                        value="{{ busca }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-6 col-lg-3">
                 <select name="cliente" class="form-select">
                     <option value="">Todos os clientes</option>
                     {% for cliente in clientes %}
@@ -47,33 +77,31 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-4 col-lg-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-search me-2"></i>Filtrar
                 </button>
             </div>
-            <div class="col-md-3">
-                <div class="d-flex justify-content-end align-items-center">
-                    <a href="{% url 'core:listar_veiculos' %}" class="btn btn-outline-secondary me-2">
-                        <i class="bi bi-x-circle"></i>
-                    </a>
-                    <small class="text-muted">{{ veiculos.paginator.count }} encontrados</small>
-                </div>
+            <div class="col-6 col-md-4 col-lg-3 d-flex align-items-center justify-content-start justify-content-lg-end">
+                <a href="{% url 'core:listar_veiculos' %}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+                <small class="text-muted">{{ veiculos.paginator.count }} encontrados</small>
             </div>
         </form>
     </div>
 </div>
 
 <!-- Toggle de Visualização -->
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <div>
         <span class="text-muted">{{ veiculos.paginator.count }} veículos encontrados</span>
     </div>
-    <div class="btn-group btn-group-sm">
-        <button type="button" class="btn btn-outline-secondary active" onclick="toggleViewVeiculos('cards')">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Alternar visualização">
+        <button type="button" class="btn btn-outline-secondary active" data-view="cards" onclick="toggleViewVeiculos('cards', this)">
             <i class="bi bi-grid-3x3-gap"></i>
         </button>
-        <button type="button" class="btn btn-outline-secondary" onclick="toggleViewVeiculos('table')">
+        <button type="button" class="btn btn-outline-secondary" data-view="table" onclick="toggleViewVeiculos('table', this)">
             <i class="bi bi-table"></i>
         </button>
     </div>
@@ -407,37 +435,49 @@
 </div>
 {% endblock %}
 
+<a href="{% url 'core:cadastrar_veiculo' %}" class="btn btn-primary mobile-floating-action d-md-none" aria-label="Cadastrar novo veículo">
+    <i class="bi bi-car-front-fill me-1"></i> Novo veículo
+</a>
+
 {% block extra_js %}
 <script>
 // Toggle de visualização
-function toggleViewVeiculos(view) {
+function toggleViewVeiculos(view, trigger) {
     const cardsView = document.getElementById('cards-view-veiculos');
     const tableView = document.getElementById('table-view-veiculos');
-    const buttons = document.querySelectorAll('.btn-group .btn');
+    const buttons = document.querySelectorAll('.btn-group[aria-label="Alternar visualização"] .btn');
     
     buttons.forEach(btn => btn.classList.remove('active'));
     
     if (view === 'cards') {
         cardsView.style.display = 'block';
         tableView.style.display = 'none';
-        event.target.classList.add('active');
         localStorage.setItem('veiculos_view', 'cards');
     } else {
         cardsView.style.display = 'none';
         tableView.style.display = 'block';
-        event.target.classList.add('active');
         localStorage.setItem('veiculos_view', 'table');
+    }
+
+    if (trigger) {
+        trigger.classList.add('active');
     }
 }
 
 // Restaurar visualização salva
 document.addEventListener('DOMContentLoaded', function() {
-    const savedView = localStorage.getItem('veiculos_view') || 'cards';
-    if (savedView === 'table') {
-        document.getElementById('cards-view-veiculos').style.display = 'none';
-        document.getElementById('table-view-veiculos').style.display = 'block';
-        document.querySelectorAll('.btn-group .btn')[1].classList.add('active');
-        document.querySelectorAll('.btn-group .btn')[0].classList.remove('active');
+    const defaultView = window.matchMedia('(max-width: 991.98px)').matches ? 'cards' : 'table';
+    const savedView = localStorage.getItem('veiculos_view') || defaultView;
+    toggleViewVeiculos(savedView);
+
+    const activeButton = document.querySelector(`.btn-group[aria-label="Alternar visualização"] .btn[data-view="${savedView}"]`);
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+
+    const filtrosCollapse = document.getElementById('veiculosFiltroCollapse');
+    if (filtrosCollapse && window.matchMedia('(min-width: 768px)').matches) {
+        filtrosCollapse.classList.add('show');
     }
     
     // Foco no campo de busca

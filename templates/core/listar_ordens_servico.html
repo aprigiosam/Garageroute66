@@ -2,6 +2,33 @@
 
 {% block title %}Ordens de Serviço · Oficina Pro{% endblock %}
 
+{% block extra_css %}
+{{ block.super }}
+<style>
+@media (max-width: 991.98px) {
+    #cards-view .card {
+        border-radius: 18px;
+    }
+    #cards-view .card-body {
+        padding: 1.25rem;
+    }
+}
+@media (max-width: 767.98px) {
+    .mobile-floating-action {
+        position: fixed;
+        bottom: 86px;
+        right: 16px;
+        z-index: 1050;
+        border-radius: 999px;
+        box-shadow: 0 12px 30px rgba(193, 39, 45, 0.35);
+        padding: 0.95rem 1.3rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+    }
+}
+</style>
+{% endblock %}
+
 {% block breadcrumb_items %}
 <li class="breadcrumb-item active">Ordens de Serviço</li>
 {% endblock %}
@@ -25,34 +52,37 @@
 {% block content %}
 <!-- Filtros -->
 <div class="card mb-4">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="card-title mb-0">
             <i class="bi bi-funnel me-2"></i>Filtros
         </h6>
+        <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#ordensFiltroCollapse" aria-expanded="false" aria-controls="ordensFiltroCollapse">
+            <i class="bi bi-sliders"></i>
+        </button>
     </div>
-    <div class="card-body">
+    <div id="ordensFiltroCollapse" class="card-body collapse">
         <form method="get" class="row g-3">
-            <div class="col-md-2">
+            <div class="col-12 col-md-6 col-lg-2">
                 {{ form.status.label_tag }}
                 {{ form.status }}
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-6 col-lg-2">
                 {{ form.prioridade.label_tag }}
                 {{ form.prioridade }}
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-6 col-lg-2">
                 {{ form.cliente.label_tag }}
                 {{ form.cliente }}
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-6 col-lg-2">
                 {{ form.data_inicio.label_tag }}
                 {{ form.data_inicio }}
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-6 col-lg-2">
                 {{ form.data_fim.label_tag }}
                 {{ form.data_fim }}
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-6 col-lg-2">
                 {{ form.busca.label_tag }}
                 {{ form.busca }}
             </div>
@@ -70,15 +100,15 @@
 
 <!-- Lista de Ordens -->
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h6 class="card-title mb-0">
             Lista de Ordens ({{ ordens.paginator.count }} encontradas)
         </h6>
-        <div class="btn-group btn-group-sm">
-            <button type="button" class="btn btn-outline-secondary" onclick="toggleView('table')">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Alternar visualização">
+            <button type="button" class="btn btn-outline-secondary" data-view="table" data-ordens-view onclick="toggleView('table', this)">
                 <i class="bi bi-table"></i>
             </button>
-            <button type="button" class="btn btn-outline-secondary" onclick="toggleView('cards')">
+        <button type="button" class="btn btn-outline-secondary" data-view="cards" data-ordens-view onclick="toggleView('cards', this)">
                 <i class="bi bi-grid-3x3-gap"></i>
             </button>
         </div>
@@ -328,6 +358,10 @@
     {% endif %}
 </div>
 
+<a href="{% url 'core:abrir_ordem_servico' %}" class="btn btn-primary mobile-floating-action d-md-none" aria-label="Criar nova ordem de serviço">
+    <i class="bi bi-plus-circle me-1"></i> Nova OS
+</a>
+
 <!-- Modal para observações de status -->
 <div class="modal fade" id="statusModal" tabindex="-1">
     <div class="modal-dialog">
@@ -361,7 +395,7 @@
 {% block extra_js %}
 <script>
     // Controle de visualização
-    function toggleView(view) {
+    function toggleView(view, trigger) {
         const tableView = document.getElementById('table-view');
         const cardsView = document.getElementById('cards-view');
         
@@ -376,16 +410,32 @@
         }
         
         // Atualizar botões ativos
-        document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        document.querySelectorAll('[data-ordens-view]').forEach(btn => {
             btn.classList.remove('active');
         });
-        event.target.closest('.btn').classList.add('active');
+        if (trigger) {
+            trigger.classList.add('active');
+        }
     }
     
     // Restaurar visualização salva
     document.addEventListener('DOMContentLoaded', function() {
-        const savedView = localStorage.getItem('ordens_view') || 'table';
-        toggleView(savedView);
+        const savedView = localStorage.getItem('ordens_view');
+        const defaultView = window.matchMedia('(max-width: 991.98px)').matches ? 'cards' : 'table';
+        const initialView = savedView || defaultView;
+        toggleView(initialView);
+
+        // Garantir filtros visíveis em telas médias para cima
+        const filtrosCollapse = document.getElementById('ordensFiltroCollapse');
+        if (filtrosCollapse && window.matchMedia('(min-width: 768px)').matches) {
+            filtrosCollapse.classList.add('show');
+        }
+
+        // Marcar botão ativo conforme view inicial
+        const activeButton = document.querySelector(`[data-ordens-view][data-view="${initialView}"]`);
+        if (activeButton) {
+            activeButton.classList.add('active');
+        }
     });
 
     // Mudança de status

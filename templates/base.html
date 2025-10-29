@@ -359,7 +359,7 @@
 
         .table thead th {
             border-color: rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.75);
+            color: rgba(255,255,255,0.78);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -379,15 +379,24 @@
             border: 1px solid rgba(255,255,255,0.05);
         }
 
-        .bg-white,
+        .table-light {
+            background-color: rgba(255,255,255,0.08) !important;
+            color: rgba(255,255,255,0.85) !important;
+        }
+
+        .bg-white {
+            background: linear-gradient(180deg, #232323 0%, #181818 100%) !important;
+            color: var(--brand-light) !important;
+        }
+
         .bg-light {
-            background-color: #1c1c1c !important;
+            background-color: rgba(255,255,255,0.12) !important;
             color: var(--brand-light) !important;
         }
 
         .bg-white .text-muted,
         .bg-light .text-muted {
-            color: rgba(255,255,255,0.6) !important;
+            color: rgba(255,255,255,0.7) !important;
         }
 
         .text-muted {
