@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
 from .models import (
     Cliente, OrdemServico, Veiculo, ItemOrdemServico, FotoOrdemServico,
-    Agendamento, CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
+    PagamentoOrdemServico, Agendamento, CategoriaPeca, Fornecedor, Peca, MovimentacaoEstoque
 )
 
 
@@ -325,6 +325,57 @@ class DiagnosticoOrdemServicoForm(BaseBootstrapForm):
             'solucao': forms.Textarea(attrs={'rows': 3}),
             'observacoes_internas': forms.Textarea(attrs={'rows': 2}),
         }
+
+
+class PagamentoOrdemServicoForm(BaseBootstrapForm):
+    class Meta:
+        model = PagamentoOrdemServico
+        fields = ['valor', 'forma_pagamento', 'status', 'parcelas', 'valor_recebido', 'observacao']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['status'].initial = PagamentoOrdemServico.Status.PAGO
+        self.fields['valor'].widget.attrs['min'] = '0.01'
+        self.fields['valor'].widget.attrs['step'] = '0.01'
+        self.fields['valor_recebido'].widget.attrs['step'] = '0.01'
+        self.fields['valor_recebido'].required = False
+        self.fields['parcelas'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        valor = cleaned_data.get('valor') or Decimal('0.00')
+        forma_pagamento = cleaned_data.get('forma_pagamento')
+
+        if forma_pagamento == PagamentoOrdemServico.FormaPagamento.DINHEIRO:
+            valor_recebido = cleaned_data.get('valor_recebido') or valor
+            if valor_recebido < valor:
+                self.add_error('valor_recebido', 'O valor recebido precisa ser igual ou superior ao valor do pagamento.')
+            cleaned_data['valor_recebido'] = valor_recebido
+            cleaned_data['troco'] = valor_recebido - valor
+        else:
+            cleaned_data['valor_recebido'] = None
+            cleaned_data['troco'] = None
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        cleaned_data = getattr(self, 'cleaned_data', {})
+
+        if cleaned_data:
+            if instance.forma_pagamento == PagamentoOrdemServico.FormaPagamento.DINHEIRO:
+                instance.valor_recebido = cleaned_data.get('valor_recebido')
+                instance.troco = cleaned_data.get('troco')
+            else:
+                instance.valor_recebido = None
+                instance.troco = None
+
+        if not instance.pk and self.user and not instance.recebido_por:
+            instance.recebido_por = self.user
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class AgendamentoForm(BaseBootstrapForm):

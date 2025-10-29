@@ -290,28 +290,123 @@
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Mão de obra:</span>
-                    <strong>R$ {{ ordem.valor_mao_obra|floatformat:2 }}</strong>
+                    <span>Total aprovado:</span>
+                    <strong>R$ {{ total_aprovado|floatformat:2 }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>Peças:</span>
-                    <strong>R$ {{ ordem.valor_pecas|floatformat:2 }}</strong>
+                    <span>Total pago:</span>
+                    <strong class="{% if saldo_pendente == 0 %}text-success{% else %}text-warning{% endif %}">R$ {{ total_pago|floatformat:2 }}</strong>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>Terceiros:</span>
-                    <strong>R$ {{ ordem.valor_terceiros|floatformat:2 }}</strong>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Saldo pendente:</span>
+                    <strong class="{% if saldo_pendente == 0 %}text-success{% else %}text-danger{% endif %}">R$ {{ saldo_pendente|floatformat:2 }}</strong>
                 </div>
-                {% if ordem.desconto > 0 %}
-                <div class="d-flex justify-content-between mb-2 text-danger">
-                    <span>Desconto:</span>
-                    <strong>- R$ {{ ordem.desconto|floatformat:2 }}</strong>
+
+                {% if saldo_pendente > 0 %}
+                <div class="alert alert-warning small" role="alert">
+                    Ainda faltam R$ {{ saldo_pendente|floatformat:2 }} para quitar esta OS.
+                </div>
+                {% else %}
+                <div class="alert alert-success small" role="alert">
+                    Pagamentos quitados. OS liberada para entrega.
                 </div>
                 {% endif %}
-                <hr>
-                <div class="d-flex justify-content-between">
-                    <strong>Total:</strong>
-                    <strong class="text-success fs-5">R$ {{ ordem.total|floatformat:2 }}</strong>
+
+                <div class="border-top pt-3 mt-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Mão de obra:</span>
+                        <strong>R$ {{ ordem.valor_mao_obra|floatformat:2 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Peças:</span>
+                        <strong>R$ {{ ordem.valor_pecas|floatformat:2 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Terceiros:</span>
+                        <strong>R$ {{ ordem.valor_terceiros|floatformat:2 }}</strong>
+                    </div>
+                    {% if ordem.desconto > 0 %}
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                        <span>Desconto:</span>
+                        <strong>- R$ {{ ordem.desconto|floatformat:2 }}</strong>
+                    </div>
+                    {% endif %}
                 </div>
+
+                <button class="btn btn-outline-primary btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#registrarPagamento" aria-expanded="false" aria-controls="registrarPagamento">
+                    <i class="bi bi-plus-circle me-1"></i>Registrar pagamento
+                </button>
+
+                <div class="collapse mt-3" id="registrarPagamento">
+                    <form method="post" action="{% url 'core:registrar_pagamento_ordem' ordem.id %}">
+                        {% csrf_token %}
+                        {% if pagamento_form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in pagamento_form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                        {% endif %}
+                        {% for field in pagamento_form %}
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        {% endfor %}
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="bi bi-cash-coin me-1"></i>Salvar pagamento
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagamentos -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-receipt me-2"></i>Pagamentos Registrados
+                </h6>
+                <span class="badge bg-secondary">{{ pagamentos|length }}</span>
+            </div>
+            <div class="card-body">
+                {% if pagamentos %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Forma</th>
+                                    <th>Status</th>
+                                    <th>Recebido por</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pagamento in pagamentos %}
+                                <tr>
+                                    <td>{{ pagamento.data_pagamento|date:"d/m/Y H:i" }}</td>
+                                    <td>R$ {{ pagamento.valor|floatformat:2 }}</td>
+                                    <td>{{ pagamento.get_forma_pagamento_display }}</td>
+                                    <td>
+                                        <span class="badge {% if pagamento.status == pagamento.Status.PAGO %}bg-success{% elif pagamento.status == pagamento.Status.PENDENTE %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                            {{ pagamento.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ pagamento.recebido_por|default:"-" }}</td>
+                                </tr>
+                                {% if pagamento.observacao %}
+                                <tr>
+                                    <td colspan="5" class="text-muted small">{{ pagamento.observacao }}</td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum pagamento registrado até o momento.</p>
+                {% endif %}
             </div>
         </div>
 

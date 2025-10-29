@@ -15,11 +15,12 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import json
 
-from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento
+from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento, PagamentoOrdemServico
 from .forms import (
     ClienteForm, OrdemServicoForm, VeiculoForm,
     FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
-    ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm
+    ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm,
+    PagamentoOrdemServicoForm
 )
 from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
 from .backup_utils import create_db_backup
@@ -417,17 +418,46 @@ def detalhes_ordem_servico(request, ordem_id):
         OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico').prefetch_related('itens', 'fotos'),
         id=ordem_id
     )
-    
+
     # Histórico completo
     historico = ordem.historico_status.select_related('usuario').all()
-    
+
     context = {
         'ordem': ordem,
         'historico': historico,
         'fotos': ordem.fotos.all(),
         'public_url': request.build_absolute_uri(ordem.public_approval_path),
+        'pagamentos': ordem.pagamentos.select_related('recebido_por').order_by('-data_pagamento'),
+        'pagamento_form': PagamentoOrdemServicoForm(user=request.user),
+        'total_pago': ordem.total_pago,
+        'saldo_pendente': ordem.saldo_pendente,
+        'total_aprovado': ordem.orcamento_total_aprovado or ordem.total,
     }
     return render(request, 'core/detalhes_ordem_servico.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def registrar_pagamento_ordem(request, ordem_id):
+    ordem = get_object_or_404(
+        OrdemServico.objects.select_related('veiculo__cliente'),
+        id=ordem_id
+    )
+
+    form = PagamentoOrdemServicoForm(request.POST, user=request.user)
+    if form.is_valid():
+        pagamento = form.save(commit=False)
+        pagamento.ordem_servico = ordem
+        if pagamento.forma_pagamento == PagamentoOrdemServico.FormaPagamento.DINHEIRO:
+            if pagamento.valor_recebido is None:
+                pagamento.valor_recebido = pagamento.valor
+            pagamento.troco = (pagamento.valor_recebido or Decimal('0.00')) - pagamento.valor
+        pagamento.save()
+        messages.success(request, f"Pagamento de R$ {pagamento.valor:,.2f} registrado com sucesso.")
+    else:
+        messages.error(request, 'Não foi possível registrar o pagamento. Verifique os dados informados.')
+
+    return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
 
 
 @login_required
@@ -570,6 +600,8 @@ def atualizar_status_ordem(request, ordem_id):
             return JsonResponse({'success': False, 'message': 'Só ordens aprovadas podem entrar em execução.'})
         if novo_status == OrdemServico.Status.APROVADA and ordem.status != OrdemServico.Status.ORCAMENTO_ENVIADO:
             return JsonResponse({'success': False, 'message': 'Envie o orçamento para o cliente antes de aprovar.'})
+        if novo_status == OrdemServico.Status.ENTREGUE and not ordem.quitada:
+            return JsonResponse({'success': False, 'message': 'Não é possível entregar a OS com pagamentos pendentes.'})
 
         # Registrar no histórico
         StatusHistorico.objects.create(

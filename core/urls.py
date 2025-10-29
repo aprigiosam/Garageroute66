@@ -24,6 +24,7 @@ urlpatterns = [
     path('ordens/<int:ordem_id>/', views.detalhes_ordem_servico, name='detalhes_ordem_servico'),
     path('ordens/<int:ordem_id>/editar/', views.editar_ordem_servico, name='editar_ordem_servico'),
     path('ordens/<int:ordem_id>/status/', views.atualizar_status_ordem, name='atualizar_status_ordem'),
+    path('ordens/<int:ordem_id>/pagamentos/registrar/', views.registrar_pagamento_ordem, name='registrar_pagamento_ordem'),
 
     path('mecanico/minhas-os/', views.mecanico_minhas_ordens, name='mecanico_minhas_ordens'),
     path('mecanico/ordens/<int:ordem_id>/diagnostico/', views.mecanico_diagnostico, name='mecanico_diagnostico'),
