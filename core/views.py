@@ -348,6 +348,22 @@ def listar_ordens_servico(request):
 
 
 @login_required
+@permission_required('core.delete_ordemservico', raise_exception=False)
+@require_http_methods(["POST"])
+def deletar_ordem_servico(request, ordem_id):
+    ordem = get_object_or_404(OrdemServico, id=ordem_id)
+
+    if not request.user.has_perm('core.delete_ordemservico') and not request.user.is_superuser:
+        messages.error(request, 'Você não tem permissão para excluir ordens de serviço.')
+        return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
+
+    numero = ordem.numero_os or ordem.id
+    ordem.delete()
+    messages.success(request, f'Ordem de serviço #{numero} removida com sucesso.')
+    return redirect('core:listar_ordens_servico')
+
+
+@login_required
 def editar_ordem_servico(request, ordem_id):
     ordem = get_object_or_404(OrdemServico, id=ordem_id)
     status_anterior = ordem.status

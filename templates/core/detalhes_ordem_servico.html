@@ -88,6 +88,14 @@
                     </a>
                 </li>
                 {% endif %}
+                <li>
+                    <form method="post" action="{% url 'core:deletar_ordem_servico' ordem.id %}" onsubmit="return confirm('Tem certeza que deseja excluir esta OS? Esta ação é irreversível.');">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item text-danger">
+                            <i class="bi bi-trash me-2"></i>Excluir OS
+                        </button>
+                    </form>
+                </li>
             </ul>
         </div>
     </div>
