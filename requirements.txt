@@ -1,40 +1,5 @@
-# ============================================
-# REQUIREMENTS MÍNIMOS - DEPLOY GRATUITO
-# ============================================
-# Use este arquivo para deploy rápido e gratuito
-# Sem cache, sem relatórios PDF, sem features pesadas
-
-# Django Framework
-Django==5.2.6
-
-# Environment variables management
-django-environ==0.11.2
-
-# Static files serving for production
-whitenoise==6.6.0
-
-# Imagens e uploads
-Pillow==10.4.0
-
-# Database drivers
-# SQLite já vem com Python
-# PostgreSQL para produção (Render, Heroku, etc.)
-psycopg2-binary==2.9.9
-dj-database-url==2.1.0
-
-# WSGI Server para produção
-gunicorn==21.2.0
-
-# Monitoramento básico (opcional - pode remover se quiser)
-# sentry-sdk==1.38.0
-
-# ============================================
-# FEATURES DESABILITADAS (adicione depois se precisar):
-# ============================================
-# - PostgreSQL (psycopg, dj-database-url)
-# - Redis e Celery (cache e filas)
-# - ReportLab e WeasyPrint (PDF)
-# - Django REST Framework (API)
-# - Debug Toolbar
-# - Excel/CSV (openpyxl, pandas)
-# ============================================
+Django>=5.1,<5.2
+Pillow>=10.0
+psycopg2-binary>=2.9
+dj-database-url>=2.2
+gunicorn>=22.0

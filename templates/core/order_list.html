@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Ordens de Serviço · {{ GARAGE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Ordens de Serviço</h1>
+        <p class="text-muted mb-0">Pesquise e filtre facilmente suas ordens ativas.</p>
+    </div>
+    <a class="btn btn-primary mt-3 mt-md-0" href="{% url 'core:order_create' %}"><i class="bi bi-plus-circle me-1"></i>Nova ordem</a>
+</div>
+
+<form class="row gy-2 gx-3 align-items-end mb-4" method="get">
+    <div class="col-sm-4 col-md-3">
+        <label class="form-label" for="search">Buscar</label>
+        <input class="form-control" type="search" id="search" name="q" value="{{ search }}" placeholder="Número, cliente ou veículo">
+    </div>
+    <div class="col-sm-4 col-md-3">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" id="status" name="status">
+            <option value="">Todos</option>
+            {% for value, label in orders.model.Status.choices %}
+                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-sm-4 col-md-3">
+        <label class="form-label" for="priority">Prioridade</label>
+        <select class="form-select" id="priority" name="priority">
+            <option value="">Todas</option>
+            {% for value, label in orders.model.Priority.choices %}
+                <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-sm-12 col-md-3">
+        <button class="btn btn-outline-secondary w-100" type="submit">Filtrar</button>
+    </div>
+</form>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Número</th>
+                    <th>Cliente</th>
+                    <th>Veículo</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>Abertura</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <tr>
+                        <td><strong>{{ order.number }}</strong></td>
+                        <td>{{ order.customer.name }}</td>
+                        <td>{{ order.vehicle.brand }} {{ order.vehicle.model }}<br><small class="text-muted">{{ order.vehicle.plate|default:'Sem placa' }}</small></td>
+                        <td><span class="badge bg-info-subtle text-info-emphasis">{{ order.get_status_display }}</span></td>
+                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ order.get_priority_display }}</span></td>
+                        <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'core:order_detail' order.pk %}">Detalhes</a></td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">Nenhuma ordem encontrada. Crie uma nova para começar.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

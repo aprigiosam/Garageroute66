@@ -1,978 +1,751 @@
-from collections import Counter
+from __future__ import annotations
 
+from decimal import Decimal
+
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login as auth_login, logout as auth_logout
-from django.contrib.auth.decorators import login_required, permission_required
-from django.contrib.auth.forms import AuthenticationForm
-from django.views.decorators.csrf import csrf_protect
-from django.core.paginator import Paginator
-from django.db.models import Q, Sum, Count, Avg, Prefetch
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import redirect, render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
+from django.core.mail import send_mail
+from django.db import transaction
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_http_methods
-from django.conf import settings
-from django.views.decorators.cache import cache_page
-from datetime import datetime, timedelta
-from decimal import Decimal
-import json
+from urllib.parse import quote
 
-from .models import Cliente, OrdemServico, Veiculo, StatusHistorico, Agendamento, PagamentoOrdemServico, PedidoPecaOrdem
 from .forms import (
-    ClienteForm, OrdemServicoForm, VeiculoForm,
-    FiltroOrdemServicoForm, AgendamentoForm, RelatorioForm,
-    ItemOrdemServicoFormSet, FotoOrdemServicoFormSet, DiagnosticoOrdemServicoForm,
-    PagamentoOrdemServicoForm, PedidoPecaOrdemForm, PublicoPagamentoForm
+    CustomerForm,
+    LoginForm,
+    QuickVehicleForm,
+    ServiceAttachmentFormSet,
+    ServiceItemFormSet,
+    PublicApprovalForm,
+    ServiceOrderApprovalForm,
+    ServiceOrderDiagnosisForm,
+    ServiceOrderExecutionForm,
+    ServiceOrderForm,
+    PaymentForm,
 )
-from .cache_utils import DashboardCache, QueryCache, cache_page_if_not_staff
-from .backup_utils import create_db_backup
-from django.core.management.base import CommandError
+from .models import Customer, ServiceAttachment, ServiceOrder, Vehicle, Payment
+
+
+def _build_public_link(request, order: ServiceOrder) -> str | None:
+    path = order.get_public_approval_path()
+    if not path:
+        return None
+    return request.build_absolute_uri(path)
+
+
+def _send_public_link_email(request, order: ServiceOrder, link: str) -> bool:
+    if not order.customer.email:
+        return False
+    subject = f"Orçamento da ordem {order.number}"
+    expiration = (
+        order.public_token_expires_at.strftime("%d/%m/%Y %H:%M")
+        if order.public_token_expires_at
+        else "brevemente"
+    )
+    message = (
+        f"Olá {order.customer.name},\n\n"
+        f"A oficina encaminhou o orçamento para a ordem de serviço {order.number}.\n"
+        f"Acesse o link abaixo para aprovar ou recusar:\n\n"
+        f"{link}\n\n"
+        f"O link expira em {expiration}.\n\n"
+        "Qualquer dúvida, entre em contato com a oficina.\n"
+    )
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@minhaoficina.local")
+    send_mail(
+        subject,
+        message,
+        from_email,
+        [order.customer.email],
+        fail_silently=True,
+    )
+    return True
+
+
+def _build_whatsapp_url(order: ServiceOrder, link: str) -> str | None:
+    if not order.customer.phone or not link:
+        return None
+    digits = "".join(filter(str.isdigit, order.customer.phone))
+    if not digits:
+        return None
+    if digits.startswith("0"):
+        digits = digits[1:]
+    if len(digits) < 10:
+        return None
+    message = (
+        f"Olá {order.customer.name}, segue o link para aprovar a OS {order.number}: {link}"
+    )
+    return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+class AuthLoginView(LoginView):
+    template_name = "registration/login.html"
+    form_class = LoginForm
 
 
 @login_required
-@cache_page_if_not_staff(timeout=300)
 def dashboard(request):
-    """Dashboard principal com estatísticas otimizadas"""
-    hoje = timezone.now().date()
+    """Simple overview with key indicators for the mechanic/owner."""
 
-    # Usar cache para estatísticas básicas
-    stats = DashboardCache.get_stats()
+    orders = ServiceOrder.objects.select_related("vehicle", "customer")
+    open_orders = orders.exclude(status=ServiceOrder.Status.DELIVERED).count()
+    awaiting_approval = orders.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
+    in_progress = orders.filter(status=ServiceOrder.Status.IN_PROGRESS).count()
+    finished = orders.filter(status=ServiceOrder.Status.DELIVERED).count()
 
-    # Ordens por status
-    ordens_por_status = OrdemServico.objects.values('status').annotate(
-        count=Count('id')
-    ).order_by('status')
-
-    # Ordens urgentes com prefetch otimizado
-    ordens_urgentes = OrdemServico.objects.select_related(
-        'veiculo__cliente'
-    ).filter(
-        prioridade=OrdemServico.Prioridade.URGENTE,
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
-    )[:5]
-
-    # Ordens vencidas
-    ordens_vencidas = OrdemServico.objects.select_related(
-        'veiculo__cliente'
-    ).filter(
-        prazo_entrega__lt=timezone.now(),
-        status__in=[OrdemServico.Status.ABERTA, OrdemServico.Status.EM_EXECUCAO]
-    )[:5]
-
-    # Agendamentos de hoje
-    agendamentos_hoje = Agendamento.objects.select_related(
-        'cliente', 'veiculo'
-    ).filter(
-        data_agendamento__date=hoje,
-        confirmado=True
-    ).order_by('data_agendamento')[:5]
-
-    # Faturamento mensal com cache
-    faturamento_mensal = DashboardCache.get_faturamento_mensal()
+    status_breakdown = (
+        orders.values("status")
+        .annotate(total=Count("id"))
+        .order_by("status")
+    )
 
     context = {
-        'stats': stats,
-        'faturamento_mes': stats['faturamento_mes'],
-        'ordens_por_status': ordens_por_status,
-        'ordens_urgentes': ordens_urgentes,
-        'ordens_vencidas': ordens_vencidas,
-        'agendamentos_hoje': agendamentos_hoje,
-        'faturamento_mensal': json.dumps(faturamento_mensal),
+        "open_orders": open_orders,
+        "awaiting_approval": awaiting_approval,
+        "in_progress": in_progress,
+        "finished": finished,
+        "status_breakdown": status_breakdown,
+        "recent_orders": orders.order_by("-created_at")[:5],
     }
-
-    return render(request, 'core/dashboard.html', context)
-
-
-@login_required
-def cadastrar_cliente(request):
-    if request.method == 'POST':
-        form = ClienteForm(request.POST, user=request.user)
-        if form.is_valid():
-            cliente = form.save()
-            messages.success(request, f"Cliente {cliente.nome} cadastrado com sucesso.")
-            return redirect(reverse('core:cadastrar_cliente'))
-    else:
-        form = ClienteForm(user=request.user)
-    
-    context = {'form': form}
-    return render(request, 'core/cadastrar_cliente.html', context)
+    return render(request, "core/dashboard.html", context)
 
 
 @login_required
-def listar_clientes(request):
-    clientes = Cliente.objects.filter(ativo=True).order_by('nome')
-    
-    # Busca
-    busca = request.GET.get('busca')
-    if busca:
-        clientes = clientes.filter(
-            Q(nome__icontains=busca) |
-            Q(cpf__icontains=busca) |
-            Q(telefone__icontains=busca) |
-            Q(email__icontains=busca)
+def order_list(request):
+    """Lists service orders with quick filters."""
+
+    orders = ServiceOrder.objects.select_related("vehicle", "customer")
+
+    status = request.GET.get("status")
+    if status:
+        orders = orders.filter(status=status)
+
+    priority = request.GET.get("priority")
+    if priority:
+        orders = orders.filter(priority=priority)
+
+    search = request.GET.get("q")
+    if search:
+        orders = orders.filter(
+            Q(number__icontains=search)
+            | Q(vehicle__plate__icontains=search)
+            | Q(vehicle__model__icontains=search)
+            | Q(customer__name__icontains=search)
         )
-    
-    # Paginação
-    paginator = Paginator(clientes, 20)
-    page = request.GET.get('page')
-    clientes = paginator.get_page(page)
-    
+
     context = {
-        'clientes': clientes,
-        'busca': busca,
+        "orders": orders.order_by("-created_at"),
+        "selected_status": status,
+        "selected_priority": priority,
+        "search": search or "",
     }
-    return render(request, 'core/listar_clientes.html', context)
-
-
-@csrf_protect
-def login_usuario(request):
-    if request.user.is_authenticated:
-        return redirect(reverse('core:dashboard'))
-
-    form = AuthenticationForm(request, data=request.POST or None)
-    for field in form.fields.values():
-        css = field.widget.attrs.get('class', '')
-        field.widget.attrs['class'] = f"{css} form-control".strip()
-
-    if request.method == 'POST':
-        if form.is_valid():
-            user = form.get_user()
-            auth_login(request, user)
-            messages.success(request, f"Bem-vindo, {user.get_full_name() or user.username}!")
-            next_url = request.POST.get('next') or request.GET.get('next') or reverse('core:dashboard')
-            return redirect(next_url)
-        else:
-            messages.error(request, "Usuário ou senha inválidos.")
-
-    context = {'form': form, 'next': request.GET.get('next', '')}
-    return render(request, 'core/login.html', context)
+    return render(request, "core/order_list.html", context)
 
 
 @login_required
-def logout_usuario(request):
-    auth_logout(request)
-    messages.info(request, "Sessão encerrada com sucesso.")
-    return redirect(reverse('core:login'))
+def order_detail(request, pk: int):
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle", "customer").prefetch_related("items", "payments", "attachments"),
+        pk=pk,
+    )
+    order.enforce_public_token_state()
+    public_url = _build_public_link(request, order)
+    whatsapp_url = _build_whatsapp_url(order, public_url) if public_url else None
+    context = {
+        "order": order,
+        "public_url": public_url,
+        "whatsapp_url": whatsapp_url,
+        "public_token_valid": order.is_public_token_valid(),
+        "can_manage_execution": order.status
+        in {
+            ServiceOrder.Status.APPROVED,
+            ServiceOrder.Status.IN_PROGRESS,
+            ServiceOrder.Status.READY,
+        },
+        "can_manage_checkout": order.status
+        in {
+            ServiceOrder.Status.READY,
+            ServiceOrder.Status.DELIVERED,
+        },
+    }
+    return render(request, "core/order_detail.html", context)
 
 
 @login_required
-def editar_cliente(request, cliente_id):
-    cliente = get_object_or_404(Cliente, id=cliente_id)
-    
-    if request.method == 'POST':
-        form = ClienteForm(request.POST, instance=cliente, user=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"Cliente {cliente.nome} atualizado com sucesso.")
-            return redirect(reverse('core:listar_clientes'))
-    else:
-        form = ClienteForm(instance=cliente, user=request.user)
-    
-    context = {'form': form, 'cliente': cliente}
-    return render(request, 'core/editar_cliente.html', context)
+@transaction.atomic
+def order_edit(request, pk: int):
+    """Diagnóstico e preparação do orçamento da OS."""
 
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle", "customer"),
+        pk=pk,
+    )
+    form = ServiceOrderDiagnosisForm(prefix="order", instance=order)
+    items_formset = ServiceItemFormSet(prefix="items", instance=order)
+    attachments_formset = ServiceAttachmentFormSet(prefix="attachments", instance=order)
 
-@login_required
-def cadastrar_veiculo(request):
-    if request.method == 'POST':
-        form = VeiculoForm(request.POST, user=request.user)
-        if form.is_valid():
-            veiculo = form.save()
-            cliente_nome = veiculo.cliente.nome if veiculo.cliente else 'sem cliente vinculado'
-            messages.success(
-                request,
-                f"Veículo {veiculo.placa} cadastrado para {cliente_nome}.",
-            )
-            return redirect(reverse('core:cadastrar_veiculo'))
-    else:
-        form = VeiculoForm(user=request.user)
-    
-    context = {'form': form}
-    return render(request, 'core/cadastrar_veiculo.html', context)
-
-
-@login_required
-def editar_veiculo(request, veiculo_id):
-    veiculo = get_object_or_404(Veiculo, id=veiculo_id)
-
-    if request.method == 'POST':
-        form = VeiculoForm(request.POST, instance=veiculo, user=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                f"Veículo {veiculo.placa} atualizado com sucesso.",
-            )
-            return redirect(reverse('core:listar_veiculos'))
-    else:
-        form = VeiculoForm(instance=veiculo, user=request.user)
-
-    context = {'form': form, 'veiculo': veiculo}
-    return render(request, 'core/editar_veiculo.html', context)
-
-
-@login_required
-def listar_veiculos(request):
-    veiculos = Veiculo.objects.select_related('cliente').filter(ativo=True).order_by('placa')
-    
-    # Busca
-    busca = request.GET.get('busca')
-    if busca:
-        veiculos = veiculos.filter(
-            Q(placa__icontains=busca) |
-            Q(marca__icontains=busca) |
-            Q(modelo__icontains=busca) |
-            Q(chassi__icontains=busca) |
-            Q(cliente__nome__icontains=busca) |
-            Q(cliente__cpf__icontains=busca)
+    if request.method == "POST":
+        previous_status = order.status
+        form = ServiceOrderDiagnosisForm(
+            request.POST,
+            prefix="order",
+            instance=order,
         )
-    
-    # Filtros
-    cliente_id = request.GET.get('cliente')
-    if cliente_id:
-        veiculos = veiculos.filter(cliente_id=cliente_id)
-    
-    # Paginação
-    paginator = Paginator(veiculos, 20)
-    page = request.GET.get('page')
-    veiculos = paginator.get_page(page)
-    
+        items_formset = ServiceItemFormSet(
+            request.POST,
+            prefix="items",
+            instance=order,
+        )
+        attachments_formset = ServiceAttachmentFormSet(
+            request.POST,
+            request.FILES,
+            prefix="attachments",
+            instance=order,
+        )
+
+        if form.is_valid() and items_formset.is_valid() and attachments_formset.is_valid():
+            order = form.save(commit=False)
+            action = request.POST.get("action")
+
+            if action == "send_for_approval":
+                order.status = ServiceOrder.Status.WAITING_APPROVAL
+                order.approval_total = order.total_items
+                if not order.diagnosis_completed_at:
+                    order.diagnosis_completed_at = timezone.now()
+            elif order.status in (
+                ServiceOrder.Status.RECEIVED,
+                ServiceOrder.Status.DIAGNOSIS,
+            ):
+                order.status = ServiceOrder.Status.DIAGNOSIS
+
+            order.save()
+            if order.status == ServiceOrder.Status.WAITING_APPROVAL:
+                order.generate_public_token()
+                public_link = _build_public_link(request, order)
+                if public_link and _send_public_link_email(request, order, public_link):
+                    messages.info(
+                        request,
+                        "Orçamento enviado por e-mail para o cliente.",
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        "Link público gerado. Copie e compartilhe com o cliente para aprovação.",
+                    )
+            items_formset.save()
+
+            attachments = attachments_formset.save(commit=False)
+            for attachment in attachments:
+                if not attachment.uploaded_by:
+                    attachment.uploaded_by = request.user if request.user.is_authenticated else None
+                attachment.save()
+            for deleted in attachments_formset.deleted_objects:
+                deleted.delete()
+
+            if previous_status != order.status:
+                order.status_history.create(
+                    from_status=previous_status,
+                    to_status=order.status,
+                    changed_by=request.user,
+                    notes="Status atualizado na etapa de diagnóstico.",
+                )
+
+            messages.success(request, "Diagnóstico salvo com sucesso.")
+
+            if action == "send_for_approval":
+                return redirect("core:order_detail", pk=order.pk)
+            return redirect("core:order_edit", pk=order.pk)
+
+        messages.error(request, "Revise os dados informados antes de salvar.")
+
     context = {
-        'veiculos': veiculos,
-        'busca': busca,
-        'clientes': Cliente.objects.filter(ativo=True).order_by('nome'),
-        'cliente_selecionado': int(cliente_id) if cliente_id else None,
+        "order": order,
+        "form": form,
+        "items_formset": items_formset,
+        "attachments_formset": attachments_formset,
     }
-    return render(request, 'core/listar_veiculos.html', context)
+    return render(request, "core/order_edit.html", context)
 
 
 @login_required
-def abrir_ordem_servico(request):
-    item_prefix = 'itens'
-    foto_prefix = 'fotos'
+@transaction.atomic
+def order_approval(request, pk: int):
+    """Handles approval workflow after diagnosis is sent to client."""
 
-    if request.method == 'POST':
-        form = OrdemServicoForm(request.POST, request.FILES, user=request.user)
-        formset = ItemOrdemServicoFormSet(request.POST, prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, prefix=foto_prefix)
-        
-        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
-            ordem_servico = form.save(commit=False)
-            estimate_type = form.cleaned_data.get('estimate_type')
-            if estimate_type == OrdemServico.EstimateType.FIXED:
-                ordem_servico.requires_diagnosis = False
-                ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
-                if not ordem_servico.orcamento_total_estimado:
-                    ordem_servico.orcamento_total_estimado = ordem_servico.calcular_total()
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle__customer"),
+        pk=pk,
+    )
+    order.enforce_public_token_state()
+    form = ServiceOrderApprovalForm(prefix="order", instance=order)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "regenerate_link":
+            order.generate_public_token(force=True)
+            link = _build_public_link(request, order)
+            if link and _send_public_link_email(request, order, link):
+                messages.success(request, "Link renovado e enviado ao cliente por e-mail.")
             else:
-                ordem_servico.requires_diagnosis = True
-                ordem_servico.status = OrdemServico.Status.DIAGNOSTICO
+                messages.success(request, "Novo link público gerado com sucesso.")
+            return redirect("core:order_approval", pk=order.pk)
+        if action == "revoke_link":
+            order.revoke_public_token()
+            messages.info(request, "Link público revogado.")
+            return redirect("core:order_approval", pk=order.pk)
 
-            ordem_servico.save()
-            formset.instance = ordem_servico
-            formset.save()
-            fotos_formset.instance = ordem_servico
-            fotos_formset.save()
-            ordem_servico.atualizar_totais_por_itens()
+        previous_status = order.status
+        form = ServiceOrderApprovalForm(
+            request.POST,
+            prefix="order",
+            instance=order,
+        )
+        if form.is_valid():
+            order = form.save(commit=False)
 
-            cliente_nome = (
-                ordem_servico.veiculo.cliente.nome
-                if ordem_servico.veiculo and ordem_servico.veiculo.cliente
-                else 'sem cliente vinculado'
+            if action == "approve":
+                order.status = ServiceOrder.Status.APPROVED
+                order.approval_confirmed_at = order.approval_confirmed_at or timezone.now()
+                order.approval_recorded_by = request.user
+                if not order.approval_channel:
+                    order.approval_channel = ServiceOrder.ApprovalChannel.IN_PERSON
+                if order.approval_total is None:
+                    order.approval_total = order.total_items
+                success_message = "Ordem aprovada com sucesso."
+            elif action == "reject":
+                order.status = ServiceOrder.Status.CANCELED
+                order.approval_confirmed_at = timezone.now()
+                order.approval_recorded_by = request.user
+                if not order.approval_channel:
+                    order.approval_channel = ServiceOrder.ApprovalChannel.IN_PERSON
+                success_message = "Ordem marcada como cancelada pelo cliente."
+            elif action == "reopen":
+                order.status = ServiceOrder.Status.DIAGNOSIS
+                order.approval_confirmed_at = None
+                order.approval_recorded_by = None
+                success_message = "Ordem reaberta para ajustes no diagnóstico."
+            else:
+                success_message = "Informações de aprovação salvas."
+
+            order.save()
+            if order.status == ServiceOrder.Status.WAITING_APPROVAL and not order.public_token:
+                order.generate_public_token()
+
+            if previous_status != order.status:
+                order.status_history.create(
+                    from_status=previous_status,
+                    to_status=order.status,
+                    changed_by=request.user,
+                    notes="Status atualizado na etapa de aprovação.",
+                )
+
+            messages.success(request, success_message)
+            if action == "reopen":
+                return redirect("core:order_edit", pk=order.pk)
+            return redirect("core:order_detail", pk=order.pk)
+
+        messages.error(request, "Revise os dados informados antes de concluir a aprovação.")
+
+    public_url = _build_public_link(request, order)
+    whatsapp_url = _build_whatsapp_url(order, public_url) if public_url else None
+    context = {
+        "order": order,
+        "form": form,
+        "public_url": public_url,
+        "whatsapp_url": whatsapp_url,
+    }
+    return render(request, "core/order_approval.html", context)
+
+
+@login_required
+@transaction.atomic
+def order_execution(request, pk: int):
+    """Manage execution stage of the service order."""
+
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle__customer"),
+        pk=pk,
+    )
+
+    if order.status not in {
+        ServiceOrder.Status.APPROVED,
+        ServiceOrder.Status.IN_PROGRESS,
+        ServiceOrder.Status.READY,
+    }:
+        messages.error(
+            request,
+            "A execução só pode ser gerenciada para ordens aprovadas ou em execução.",
+        )
+        return redirect("core:order_detail", pk=order.pk)
+
+    form = ServiceOrderExecutionForm(prefix="order", instance=order)
+    attachments_formset = ServiceAttachmentFormSet(
+        prefix="attachments",
+        instance=order,
+        queryset=order.attachments.exclude(
+            category=ServiceAttachment.Category.RECEIPT
+        ),
+    )
+
+    if request.method == "POST":
+        form = ServiceOrderExecutionForm(
+            request.POST,
+            prefix="order",
+            instance=order,
+        )
+        attachments_formset = ServiceAttachmentFormSet(
+            request.POST,
+            request.FILES,
+            prefix="attachments",
+            instance=order,
+            queryset=order.attachments.exclude(
+                category=ServiceAttachment.Category.RECEIPT
+            ),
+        )
+
+        if form.is_valid() and attachments_formset.is_valid():
+            previous_status = order.status
+            order = form.save(commit=False)
+            if order.status == ServiceOrder.Status.IN_PROGRESS and not order.execution_started_at:
+                order.execution_started_at = timezone.now()
+            if order.status == ServiceOrder.Status.READY:
+                order.execution_completed_at = order.execution_completed_at or timezone.now()
+            if order.status == ServiceOrder.Status.APPROVED:
+                order.execution_started_at = None
+                order.execution_completed_at = None
+            order.save()
+
+            attachments = attachments_formset.save(commit=False)
+            for attachment in attachments:
+                if not attachment.file:
+                    continue
+                if not attachment.uploaded_by:
+                    attachment.uploaded_by = request.user
+                attachment.category = ServiceAttachment.Category.VEHICLE_PHOTO
+                attachment.save()
+            for deleted in attachments_formset.deleted_objects:
+                deleted.delete()
+
+            if previous_status != order.status:
+                order.status_history.create(
+                    from_status=previous_status,
+                    to_status=order.status,
+                    changed_by=request.user,
+                    notes="Status atualizado durante a execução.",
+                )
+
+            messages.success(request, "Dados da execução atualizados com sucesso.")
+            return redirect("core:order_detail", pk=order.pk)
+
+        messages.error(request, "Revise os dados destacados antes de salvar.")
+
+    context = {
+        "order": order,
+        "form": form,
+        "attachments_formset": attachments_formset,
+    }
+    return render(request, "core/order_execution.html", context)
+
+
+@login_required
+@transaction.atomic
+def order_checkout(request, pk: int):
+    """Handle payments and delivery of the service order."""
+
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle__customer"),
+        pk=pk,
+    )
+
+    if order.status not in {
+        ServiceOrder.Status.READY,
+        ServiceOrder.Status.DELIVERED,
+    }:
+        messages.error(
+            request,
+            "A finalização só pode ser acessada quando a OS está pronta para entrega.",
+        )
+        return redirect("core:order_detail", pk=order.pk)
+
+    payment_form = PaymentForm(prefix="payment")
+    receipts_queryset = order.attachments.filter(
+        category=ServiceAttachment.Category.RECEIPT
+    )
+    receipts_formset = ServiceAttachmentFormSet(
+        prefix="receipts",
+        instance=order,
+        queryset=receipts_queryset,
+    )
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "add_payment":
+            payment_form = PaymentForm(request.POST, prefix="payment")
+            if payment_form.is_valid():
+                payment = payment_form.save(commit=False)
+                payment.order = order
+                if payment.status == Payment.Status.CONFIRMED and not payment.paid_at:
+                    payment.paid_at = timezone.now()
+                if not payment.received_by:
+                    payment.received_by = request.user
+                payment.save()
+
+                messages.success(request, "Pagamento registrado com sucesso.")
+                return redirect("core:order_checkout", pk=order.pk)
+            messages.error(request, "Revise os dados do pagamento informado.")
+
+        elif action == "update_receipts":
+            receipts_formset = ServiceAttachmentFormSet(
+                request.POST,
+                request.FILES,
+                prefix="receipts",
+                instance=order,
+                queryset=receipts_queryset,
             )
-            messages.success(
-                request,
-                f"Ordem de serviço #{ordem_servico.numero_os} criada para {ordem_servico.veiculo.placa} ({cliente_nome}).",
-            )
-            if ordem_servico.status == OrdemServico.Status.ORCAMENTO_ENVIADO:
-                public_url = request.build_absolute_uri(ordem_servico.public_approval_path)
-                messages.info(
+            if receipts_formset.is_valid():
+                attachments = receipts_formset.save(commit=False)
+                for attachment in attachments:
+                    if not attachment.file:
+                        continue
+                    if not attachment.uploaded_by:
+                        attachment.uploaded_by = request.user
+                    attachment.category = ServiceAttachment.Category.RECEIPT
+                    attachment.save()
+                for deleted in receipts_formset.deleted_objects:
+                    deleted.delete()
+                messages.success(request, "Comprovantes atualizados.")
+                return redirect("core:order_checkout", pk=order.pk)
+            messages.error(request, "Revise os dados dos anexos.")
+
+        elif action == "deliver":
+            if order.balance > Decimal("0.00"):
+                messages.error(
                     request,
-                    f"Link de aprovação enviado: {public_url}"
+                    "Ainda existe saldo pendente. Registre todos os pagamentos antes de liberar o veículo.",
                 )
-            return redirect(reverse('core:listar_ordens_servico'))
-    else:
-        form = OrdemServicoForm(user=request.user)
-        formset = ItemOrdemServicoFormSet(prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(prefix=foto_prefix)
-    
-    context = {
-        'form': form,
-        'formset': formset,
-        'fotos_formset': fotos_formset,
-        'item_empty_form': formset.empty_form,
-        'foto_empty_form': fotos_formset.empty_form,
-    }
-    return render(request, 'core/abrir_ordem_servico.html', context)
-
-
-@login_required
-def listar_ordens_servico(request):
-    ordens = OrdemServico.objects.select_related(
-        'veiculo__cliente', 'responsavel_tecnico'
-    ).prefetch_related('itens', 'fotos').order_by('-data_abertura')
-    
-    # Aplicar filtros
-    form = FiltroOrdemServicoForm(request.GET)
-    if form.is_valid():
-        data = form.cleaned_data
-        
-        if data['status']:
-            ordens = ordens.filter(status=data['status'])
-        if data['prioridade']:
-            ordens = ordens.filter(prioridade=data['prioridade'])
-        if data['cliente']:
-            ordens = ordens.filter(veiculo__cliente=data['cliente'])
-        if data['veiculo']:
-            ordens = ordens.filter(veiculo=data['veiculo'])
-        if data['data_inicio']:
-            ordens = ordens.filter(data_abertura__date__gte=data['data_inicio'])
-        if data['data_fim']:
-            ordens = ordens.filter(data_abertura__date__lte=data['data_fim'])
-        if data['busca']:
-            ordens = ordens.filter(
-                Q(numero_os__icontains=data['busca']) |
-                Q(veiculo__placa__icontains=data['busca']) |
-                Q(veiculo__cliente__nome__icontains=data['busca'])
-            )
-    
-    # Paginação
-    paginator = Paginator(ordens, 15)
-    page = request.GET.get('page')
-    ordens = paginator.get_page(page)
-    
-    context = {
-        'ordens': ordens,
-        'form': form,
-    }
-    return render(request, 'core/listar_ordens_servico.html', context)
-
-
-@login_required
-@permission_required('core.delete_ordemservico', raise_exception=False)
-@require_http_methods(["POST"])
-def deletar_ordem_servico(request, ordem_id):
-    ordem = get_object_or_404(OrdemServico, id=ordem_id)
-
-    if not request.user.has_perm('core.delete_ordemservico') and not request.user.is_superuser:
-        messages.error(request, 'Você não tem permissão para excluir ordens de serviço.')
-        return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
-
-    numero = ordem.numero_os or ordem.id
-    ordem.delete()
-    messages.success(request, f'Ordem de serviço #{numero} removida com sucesso.')
-    return redirect('core:listar_ordens_servico')
-
-
-@login_required
-def editar_ordem_servico(request, ordem_id):
-    ordem = get_object_or_404(OrdemServico, id=ordem_id)
-    status_anterior = ordem.status
-    
-    item_prefix = 'itens'
-    foto_prefix = 'fotos'
-
-    if request.method == 'POST':
-        form = OrdemServicoForm(request.POST, request.FILES, instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(request.POST, instance=ordem, prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, instance=ordem, prefix=foto_prefix)
-        
-        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
-            ordem_servico = form.save(commit=False)
-            estimate_type = form.cleaned_data.get('estimate_type')
-            if estimate_type == OrdemServico.EstimateType.FIXED:
-                ordem_servico.requires_diagnosis = False
-                if ordem_servico.status == OrdemServico.Status.DIAGNOSTICO:
-                    ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
             else:
-                ordem_servico.requires_diagnosis = True
-            ordem_servico.save()
-
-            formset.save()
-            fotos_formset.save()
-            ordem_servico.atualizar_totais_por_itens()
-
-            # Registrar mudança de status se houve alteração
-            status_novo = request.POST.get('status', ordem_servico.status)
-            if status_novo != status_anterior:
-                StatusHistorico.objects.create(
-                    ordem_servico=ordem_servico,
-                    status_anterior=status_anterior,
-                    status_novo=status_novo,
-                    usuario=request.user
+                previous_status = order.status
+                order.status = ServiceOrder.Status.DELIVERED
+                order.delivered_at = timezone.now()
+                order.save()
+                order.status_history.create(
+                    from_status=previous_status,
+                    to_status=order.status,
+                    changed_by=request.user,
+                    notes="Veículo liberado após confirmação de pagamento.",
                 )
-                ordem_servico.status = status_novo
-                ordem_servico.save()
-            
-            if ordem_servico.orcamento_total_aprovado:
-                novo_total = ordem_servico.calcular_total()
-                limite = (ordem_servico.orcamento_total_aprovado or Decimal('0')) * Decimal('1.10')
-                if limite and novo_total > limite:
-                    ordem_servico.exigir_reaprovacao()
+                messages.success(request, "OS concluída e veículo liberado ao cliente.")
+                return redirect("core:order_detail", pk=order.pk)
 
-            messages.success(request, f"Ordem de serviço #{ordem_servico.numero_os} atualizada com sucesso.")
-            return redirect(reverse('core:detalhes_ordem_servico', args=[ordem_servico.id]))
-    else:
-        form = OrdemServicoForm(instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(instance=ordem, prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(instance=ordem, prefix=foto_prefix)
-    
-    # Histórico de status
-    historico = ordem.historico_status.all()[:10]
-    
-    context = {
-        'form': form,
-        'formset': formset,
-        'fotos_formset': fotos_formset,
-        'ordem': ordem,
-        'historico': historico,
-        'item_empty_form': formset.empty_form,
-        'foto_empty_form': fotos_formset.empty_form,
-    }
-    return render(request, 'core/editar_ordem_servico.html', context)
-
-
-@login_required
-def detalhes_ordem_servico(request, ordem_id):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico').prefetch_related('itens', 'fotos'),
-        id=ordem_id
-    )
-
-    # Histórico completo
-    historico = ordem.historico_status.select_related('usuario').all()
-    deposit_ratio_percent = (Decimal(str(getattr(settings, 'GARAGE_CONFIG', {}).get('MIN_DEPOSIT_RATIO', 0.5))) * Decimal('100')).quantize(Decimal('0.01'))
-
-    context = {
-        'ordem': ordem,
-        'historico': historico,
-        'fotos': ordem.fotos.all(),
-        'public_url': request.build_absolute_uri(ordem.public_approval_path),
-        'pagamentos': ordem.pagamentos.select_related('recebido_por').order_by('-data_pagamento'),
-        'pagamento_form': PagamentoOrdemServicoForm(user=request.user),
-        'total_pago': ordem.total_pago,
-        'saldo_pendente': ordem.saldo_pendente,
-        'total_aprovado': ordem.orcamento_total_aprovado or ordem.total,
-        'valor_minimo_sinal': ordem.valor_minimo_sinal,
-        'sinal_atendido': ordem.sinal_atendido,
-        'percentual_pago': ordem.percentual_pago,
-        'deposit_ratio_percent': deposit_ratio_percent,
-        'requisicoes_pecas': ordem.requisicoes_pecas.select_related('peca', 'fornecedor', 'solicitado_por', 'recebido_por'),
-        'pedido_peca_form': PedidoPecaOrdemForm(user=request.user),
-        'possui_pecas_pendentes': ordem.possui_pecas_pendentes,
-    }
-    return render(request, 'core/detalhes_ordem_servico.html', context)
-
-
-@login_required
-@require_http_methods(["POST"])
-def registrar_pagamento_ordem(request, ordem_id):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente'),
-        id=ordem_id
-    )
-
-    form = PagamentoOrdemServicoForm(request.POST, user=request.user)
-    if form.is_valid():
-        pagamento = form.save(commit=False)
-        pagamento.ordem_servico = ordem
-        if pagamento.forma_pagamento == PagamentoOrdemServico.FormaPagamento.DINHEIRO:
-            if pagamento.valor_recebido is None:
-                pagamento.valor_recebido = pagamento.valor
-            pagamento.troco = (pagamento.valor_recebido or Decimal('0.00')) - pagamento.valor
-        pagamento.save()
-        messages.success(request, f"Pagamento de R$ {pagamento.valor:,.2f} registrado com sucesso.")
-    else:
-        messages.error(request, 'Não foi possível registrar o pagamento. Verifique os dados informados.')
-
-    return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
-
-
-@login_required
-@require_http_methods(["POST"])
-def criar_requisicao_peca(request, ordem_id):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente'),
-        id=ordem_id
-    )
-
-    form = PedidoPecaOrdemForm(request.POST, user=request.user)
-    if form.is_valid():
-        requisicao = form.save(commit=False)
-        requisicao.ordem_servico = ordem
-        if not requisicao.solicitado_por:
-            requisicao.solicitado_por = request.user
-        requisicao.save()
-        messages.success(request, 'Pedido de peça registrado com sucesso.')
-    else:
-        messages.error(request, 'Não foi possível registrar o pedido de peça. Verifique os campos destacados.')
-
-    return redirect('core:detalhes_ordem_servico', ordem_id=ordem.id)
-
-
-@login_required
-@require_http_methods(["POST"])
-def atualizar_requisicao_peca(request, ordem_id, requisicao_id):
-    requisicao = get_object_or_404(
-        PedidoPecaOrdem.objects.select_related('ordem_servico'),
-        id=requisicao_id,
-        ordem_servico_id=ordem_id
-    )
-
-    acao = request.POST.get('acao')
-    transicoes = {
-        'enviar_compra': PedidoPecaOrdem.Status.EM_COMPRA,
-        'aguardar_entrega': PedidoPecaOrdem.Status.AGUARDANDO_ENTREGA,
-        'marcar_recebido': PedidoPecaOrdem.Status.RECEBIDO,
-        'cancelar': PedidoPecaOrdem.Status.CANCELADO,
-    }
-
-    novo_status = transicoes.get(acao)
-    if not novo_status:
-        messages.warning(request, 'Ação inválida para a requisição de peça.')
-        return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
-
-    requisicao.status = novo_status
-    requisicao.observacao = request.POST.get('observacao', requisicao.observacao)
-
-    if novo_status == PedidoPecaOrdem.Status.RECEBIDO:
-        requisicao.data_recebimento = timezone.now()
-        requisicao.recebido_por = request.user
-    else:
-        requisicao.data_recebimento = None
-        requisicao.recebido_por = None
-
-    requisicao.save()
-
-    if requisicao.ordem_servico.status == OrdemServico.Status.AGUARDANDO_PECA:
-        if not requisicao.ordem_servico.possui_pecas_pendentes and novo_status == PedidoPecaOrdem.Status.RECEBIDO:
-            # Reativar execução automaticamente
-            status_anterior = requisicao.ordem_servico.status
-            requisicao.ordem_servico.status = OrdemServico.Status.EM_EXECUCAO
-            requisicao.ordem_servico.save(update_fields=['status'])
-            StatusHistorico.objects.create(
-                ordem_servico=requisicao.ordem_servico,
-                status_anterior=status_anterior,
-                status_novo=OrdemServico.Status.EM_EXECUCAO,
-                usuario=request.user,
-                observacao='Peças recebidas - execução retomada automaticamente.'
+        elif action == "reopen_ready":
+            previous_status = order.status
+            order.status = ServiceOrder.Status.READY
+            order.delivered_at = None
+            order.save(update_fields=["status", "delivered_at"])
+            order.status_history.create(
+                from_status=previous_status,
+                to_status=order.status,
+                changed_by=request.user,
+                notes="Entrega desfeita para ajustes.",
             )
-            messages.success(request, 'Peças recebidas. OS retomada para execução.')
-            return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
+            messages.info(request, "Status ajustado para 'Pronta para entrega'.")
+            return redirect("core:order_checkout", pk=order.pk)
 
-    mensagens = {
-        PedidoPecaOrdem.Status.EM_COMPRA: 'Requisição marcada como em compra.',
-        PedidoPecaOrdem.Status.AGUARDANDO_ENTREGA: 'Aguardando entrega do fornecedor.',
-        PedidoPecaOrdem.Status.RECEBIDO: 'Peça marcada como recebida.',
-        PedidoPecaOrdem.Status.CANCELADO: 'Requisição cancelada.',
+    context = {
+        "order": order,
+        "payment_form": payment_form,
+        "receipts_formset": receipts_formset,
     }
-    messages.success(request, mensagens.get(novo_status, 'Requisição atualizada.'))
-
-    return redirect('core:detalhes_ordem_servico', ordem_id=ordem_id)
+    return render(request, "core/order_checkout.html", context)
 
 
 @login_required
-def mecanico_minhas_ordens(request):
-    ordens_queryset = OrdemServico.objects.select_related(
-        'veiculo__cliente', 'responsavel_tecnico'
-    ).prefetch_related('itens', 'fotos').filter(
-        responsavel_tecnico=request.user,
-        status__in=[
-            OrdemServico.Status.DIAGNOSTICO,
-            OrdemServico.Status.ORCAMENTO,
-            OrdemServico.Status.ORCAMENTO_ENVIADO,
-            OrdemServico.Status.APROVADA,
-            OrdemServico.Status.EM_EXECUCAO,
-            OrdemServico.Status.AGUARDANDO_PECA,
-        ]
-    ).order_by('status', '-prioridade', '-data_abertura')
-    ordens = list(ordens_queryset)
-    status_counts = Counter(ordem.status for ordem in ordens)
-    status_config = [
-        {
-            'code': OrdemServico.Status.DIAGNOSTICO,
-            'label': 'Diagnóstico',
-            'icon': 'bi-clipboard-pulse',
-            'variant': 'diagnostico',
-        },
-        {
-            'code': OrdemServico.Status.ORCAMENTO,
-            'label': 'Orçamento interno',
-            'icon': 'bi-calculator',
-            'variant': 'orcamento',
-        },
-        {
-            'code': OrdemServico.Status.ORCAMENTO_ENVIADO,
-            'label': 'Orçamento enviado',
-            'icon': 'bi-send-check',
-            'variant': 'orcamento-enviado',
-        },
-        {
-            'code': OrdemServico.Status.APROVADA,
-            'label': 'Aprovadas',
-            'icon': 'bi-hand-thumbs-up',
-            'variant': 'aprovada',
-        },
-        {
-            'code': OrdemServico.Status.EM_EXECUCAO,
-            'label': 'Em execução',
-            'icon': 'bi-lightning-charge',
-            'variant': 'execucao',
-        },
-        {
-            'code': OrdemServico.Status.AGUARDANDO_PECA,
-            'label': 'Aguardando peças',
-            'icon': 'bi-box-seam',
-            'variant': 'peca',
-        },
-    ]
-    status_summary = [
-        {
-            **config,
-            'count': status_counts.get(config['code'], 0)
-        }
-        for config in status_config
-    ]
-    execucao_statuses = [
-        OrdemServico.Status.APROVADA,
-        OrdemServico.Status.EM_EXECUCAO,
-        OrdemServico.Status.AGUARDANDO_PECA,
-    ]
-    return render(request, 'core/mecanico_minhas_os.html', {
-        'ordens': ordens,
-        'status_summary': status_summary,
-        'total_ordens': len(ordens),
-        'execucao_statuses': execucao_statuses,
-    })
+def order_receipt(request, pk: int):
+    """Render a printable receipt for delivered orders."""
 
-
-@login_required
-def mecanico_diagnostico(request, ordem_id):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico'),
-        id=ordem_id
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle__customer").prefetch_related("items", "payments"),
+        pk=pk,
     )
 
-    if ordem.responsavel_tecnico != request.user:
-        messages.error(request, 'Você não tem permissão para editar esta ordem.')
-        return redirect('core:mecanico_minhas_ordens')
+    if order.status != ServiceOrder.Status.DELIVERED:
+        messages.error(
+            request,
+            "O recibo só fica disponível quando a ordem está finalizada.",
+        )
+        return redirect("core:order_detail", pk=order.pk)
 
-    if ordem.status not in [OrdemServico.Status.DIAGNOSTICO, OrdemServico.Status.ORCAMENTO]:
-        messages.warning(request, 'Esta ordem não está em diagnóstico.')
-        return redirect('core:mecanico_minhas_ordens')
-
-    item_prefix = 'itens'
-    foto_prefix = 'fotos'
-
-    if request.method == 'POST':
-        form = DiagnosticoOrdemServicoForm(request.POST, instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(request.POST, instance=ordem, prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(request.POST, request.FILES, instance=ordem, prefix=foto_prefix)
-
-        if form.is_valid() and formset.is_valid() and fotos_formset.is_valid():
-            ordem_servico = form.save(commit=False)
-            ordem_servico.status = OrdemServico.Status.ORCAMENTO_ENVIADO
-            ordem_servico.requires_diagnosis = False
-            if not ordem_servico.orcamento_total_estimado:
-                ordem_servico.orcamento_total_estimado = ordem_servico.calcular_total()
-            ordem_servico.save()
-            formset.save()
-            fotos_formset.save()
-            ordem_servico.atualizar_totais_por_itens()
-
-            messages.success(request, 'Diagnóstico enviado para a recepção.')
-            return redirect('core:mecanico_minhas_ordens')
-    else:
-        form = DiagnosticoOrdemServicoForm(instance=ordem, user=request.user)
-        formset = ItemOrdemServicoFormSet(instance=ordem, prefix=item_prefix)
-        fotos_formset = FotoOrdemServicoFormSet(instance=ordem, prefix=foto_prefix)
-
-    return render(request, 'core/mecanico_diagnostico.html', {
-        'form': form,
-        'formset': formset,
-        'fotos_formset': fotos_formset,
-        'ordem': ordem,
-        'item_empty_form': formset.empty_form,
-        'foto_empty_form': fotos_formset.empty_form,
-    })
+    context = {
+        "order": order,
+        "payments": order.payments.filter(status=Payment.Status.CONFIRMED),
+        "total_itens": order.total_items,
+        "total_pago": order.total_paid,
+        "usuario": request.user,
+    }
+    return render(request, "core/order_receipt.html", context)
 
 
 @login_required
-@require_http_methods(["POST"])
-def mecanico_atualizar_status(request, ordem_id):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico'),
-        id=ordem_id
-    )
+@transaction.atomic
+def order_create(request):
+    """Create a service order with optional inline customer/vehicle creation."""
 
-    if ordem.responsavel_tecnico != request.user:
-        messages.error(request, 'Você não tem permissão para alterar esta ordem.')
-        return redirect('core:mecanico_minhas_ordens')
+    existing_customers = Customer.objects.order_by("name")
+    existing_vehicles = Vehicle.objects.select_related("customer").order_by("plate")
 
-    acao = request.POST.get('acao')
-    transicoes = {
-        OrdemServico.Status.APROVADA: {
-            'iniciar_execucao': OrdemServico.Status.EM_EXECUCAO,
-            'aguardar_peca': OrdemServico.Status.AGUARDANDO_PECA,
-        },
-        OrdemServico.Status.EM_EXECUCAO: {
-            'aguardar_peca': OrdemServico.Status.AGUARDANDO_PECA,
-            'concluir_execucao': OrdemServico.Status.CONCLUIDA,
-        },
-        OrdemServico.Status.AGUARDANDO_PECA: {
-            'retomar_execucao': OrdemServico.Status.EM_EXECUCAO,
-        },
-    }
+    customer_form = CustomerForm(prefix="customer")
+    vehicle_form = QuickVehicleForm(prefix="vehicle")
+    order_form = ServiceOrderForm(prefix="order")
 
-    proximo_status = transicoes.get(ordem.status, {}).get(acao)
+    if request.method == "POST":
+        order_form = ServiceOrderForm(request.POST, prefix="order")
+        customer_form = CustomerForm(request.POST, prefix="customer")
+        vehicle_form = QuickVehicleForm(request.POST, prefix="vehicle")
 
-    if not proximo_status:
-        messages.warning(request, 'Ação inválida para o status atual da ordem.')
-        return redirect('core:mecanico_minhas_ordens')
+        customer: Customer | None = None
+        vehicle: Vehicle | None = None
+        existing_vehicle_id = request.POST.get("existing_vehicle")
+        existing_customer_id = request.POST.get("existing_customer")
 
-    if proximo_status == OrdemServico.Status.EM_EXECUCAO:
-        if not ordem.sinal_atendido:
-            messages.warning(
+        if existing_vehicle_id:
+            vehicle = get_object_or_404(Vehicle, pk=existing_vehicle_id)
+            customer = vehicle.customer
+        else:
+            if existing_customer_id:
+                customer = get_object_or_404(Customer, pk=existing_customer_id)
+            else:
+                if customer_form.is_valid():
+                    customer = customer_form.save()
+                else:
+                    messages.error(request, "Revise os dados do cliente para continuar.")
+
+            if customer and vehicle_form.is_valid():
+                vehicle = vehicle_form.save(commit=False)
+                vehicle.customer = customer
+                vehicle.save()
+            elif not existing_customer_id:
+                messages.error(request, "Informe os dados do veículo para continuar.")
+
+        if customer and vehicle and order_form.is_valid():
+            order = order_form.save(commit=False)
+            order.vehicle = vehicle
+            order.customer = customer
+            if not order.responsible:
+                order.responsible = request.user
+            order.save()
+            order.status_history.create(
+                from_status="",
+                to_status=order.status,
+                changed_by=request.user if request.user.is_authenticated else None,
+                notes="OS criada pelo painel",
+            )
+            messages.success(
                 request,
-                f'Sinal mínimo de R$ {ordem.valor_minimo_sinal:,.2f} não recebido. Solicite à recepção.'
+                f"Ordem de serviço {order.number} criada com sucesso!",
             )
-            return redirect('core:mecanico_minhas_ordens')
-        if ordem.possui_pecas_pendentes:
-            messages.warning(request, 'Ainda há peças aguardando compra ou entrega. Aguarde a recepção.')
-            return redirect('core:mecanico_minhas_ordens')
+            return redirect(reverse("core:order_detail", args=[order.pk]))
+        else:
+            # preserve selected options so the template can re-render properly
+            context = {
+                "order_form": order_form,
+                "customer_form": customer_form,
+                "vehicle_form": vehicle_form,
+                "existing_customers": existing_customers,
+                "existing_vehicles": existing_vehicles,
+                "selected_customer": existing_customer_id,
+                "selected_vehicle": existing_vehicle_id,
+                "issue_priority_fields": {"issue_description", "priority"},
+            }
+            return render(request, "core/order_create.html", context)
 
-    status_anterior = ordem.status
-    ordem.status = proximo_status
-    ordem.save()
-
-    StatusHistorico.objects.create(
-        ordem_servico=ordem,
-        status_anterior=status_anterior,
-        status_novo=proximo_status,
-        usuario=request.user,
-        observacao=request.POST.get('observacao', '')
-    )
-
-    mensagens_sucesso = {
-        'iniciar_execucao': 'Execução iniciada. Boa mão na massa!',
-        'aguardar_peca': 'Ordem marcada como aguardando peça.',
-        'concluir_execucao': 'Execução concluída! Avise a recepção.',
-        'retomar_execucao': 'Execução retomada.',
-    }
-    messages.success(request, mensagens_sucesso.get(acao, 'Status atualizado com sucesso.'))
-
-    return redirect('core:mecanico_minhas_ordens')
-
-
-@login_required
-@require_http_methods(["POST"])
-def atualizar_status_ordem(request, ordem_id):
-    """Atualização rápida de status via AJAX"""
-    ordem = get_object_or_404(OrdemServico, id=ordem_id)
-    status_anterior = ordem.status
-    novo_status = request.POST.get('status')
-    
-    if novo_status in dict(OrdemServico.Status.choices):
-        if novo_status == OrdemServico.Status.EM_EXECUCAO and ordem.status != OrdemServico.Status.APROVADA:
-            return JsonResponse({'success': False, 'message': 'Só ordens aprovadas podem entrar em execução.'})
-        if novo_status == OrdemServico.Status.EM_EXECUCAO and not ordem.sinal_atendido:
-            return JsonResponse({'success': False, 'message': f'Sinal mínimo de R$ {ordem.valor_minimo_sinal:,.2f} não recebido.'})
-        if novo_status == OrdemServico.Status.EM_EXECUCAO and ordem.possui_pecas_pendentes:
-            return JsonResponse({'success': False, 'message': 'Existem requisições de peças pendentes.'})
-        if novo_status == OrdemServico.Status.APROVADA and ordem.status != OrdemServico.Status.ORCAMENTO_ENVIADO:
-            return JsonResponse({'success': False, 'message': 'Envie o orçamento para o cliente antes de aprovar.'})
-        if novo_status == OrdemServico.Status.ENTREGUE and not ordem.quitada:
-            return JsonResponse({'success': False, 'message': 'Não é possível entregar a OS com pagamentos pendentes.'})
-
-        # Registrar no histórico
-        StatusHistorico.objects.create(
-            ordem_servico=ordem,
-            status_anterior=status_anterior,
-            status_novo=novo_status,
-            usuario=request.user,
-            observacao=request.POST.get('observacao', '')
-        )
-        
-        ordem.status = novo_status
-        ordem.save()
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Status atualizado para {ordem.get_status_display()}'
-        })
-
-    return JsonResponse({'success': False, 'message': 'Status inválido'})
-
-
-@login_required
-def agendamentos(request):
-    if request.method == 'POST':
-        form = AgendamentoForm(request.POST, user=request.user)
-        if form.is_valid():
-            agendamento = form.save()
-            messages.success(request, f"Agendamento criado para {agendamento.cliente.nome}.")
-            return redirect(reverse('core:agendamentos'))
-    else:
-        form = AgendamentoForm(user=request.user)
-    
-    # Lista de agendamentos
-    hoje = timezone.now().date()
-    agendamentos_lista = Agendamento.objects.select_related(
-        'cliente', 'veiculo'
-    ).filter(
-        data_agendamento__date__gte=hoje
-    ).order_by('data_agendamento')[:20]
-    
     context = {
-        'form': form,
-        'agendamentos': agendamentos_lista,
+        "order_form": order_form,
+        "customer_form": customer_form,
+        "vehicle_form": vehicle_form,
+        "existing_customers": existing_customers,
+        "existing_vehicles": existing_vehicles,
+        "selected_customer": None,
+        "selected_vehicle": None,
+        "issue_priority_fields": {"issue_description", "priority"},
     }
-    return render(request, 'core/agendamentos.html', context)
+    return render(request, "core/order_create.html", context)
 
 
-def orcamento_publico(request, token):
-    ordem = get_object_or_404(
-        OrdemServico.objects.select_related('veiculo__cliente', 'responsavel_tecnico').prefetch_related('itens', 'fotos'),
-        orcamento_token=token
+def public_order(request, token: str):
+    """Public-facing view for customers to approve or reject a service order."""
+
+    order = get_object_or_404(
+        ServiceOrder.objects.select_related("vehicle__customer").prefetch_related("items", "attachments"),
+        public_token=token,
     )
 
-    aprovado = ordem.status == OrdemServico.Status.APROVADA
-    mensagem = ''
-    mensagem_pagamento = ''
-    erro_pagamento = ''
+    order.enforce_public_token_state()
+    order.refresh_from_db(fields=["public_token_revoked"])
+    token_valid = order.is_public_token_valid()
+    is_waiting = order.status == ServiceOrder.Status.WAITING_APPROVAL and token_valid
+    decision = request.POST.get("decision", "approve")
+    success = False
+    success_message = ""
+    form = None
 
-    pix_config = getattr(settings, 'GARAGE_CONFIG', {})
-    pix_key = pix_config.get('PIX_KEY', '')
-    pix_instrucoes = pix_config.get('PIX_INSTRUCTIONS', 'Use os dados acima para efetuar o pagamento do sinal.')
+    if request.method == "POST" and is_waiting:
+        form = PublicApprovalForm(request.POST, decision=decision)
+        if decision not in {"approve", "reject"}:
+            form.add_error(None, "Ação inválida.")
+        if form.is_valid():
+            previous_status = order.status
+            approval_total = form.cleaned_data.get("approval_total") or order.total_items
+            approval_notes = form.cleaned_data.get("approval_notes")
+            approval_confirmed_by = form.cleaned_data.get("approval_confirmed_by")
 
-    pagamento_form = PublicoPagamentoForm(initial={'valor': ordem.valor_minimo_sinal})
+            order.approval_total = approval_total
+            order.approval_notes = approval_notes or ""
+            order.approval_confirmed_by = approval_confirmed_by
+            order.approval_channel = ServiceOrder.ApprovalChannel.PUBLIC_LINK
+            order.approval_confirmed_at = timezone.now()
+            order.approval_recorded_by = None
 
-    if request.method == 'POST':
-        if 'registrar_pagamento' in request.POST:
-            pagamento_form = PublicoPagamentoForm(request.POST)
-            if pagamento_form.is_valid():
-                dados = pagamento_form.cleaned_data
-                observacao_extra = dados.get('observacao', '')
-                contato = dados.get('contato', '')
-                observacao = 'Pagamento informado via link público.'
-                if contato:
-                    observacao += f" Contato: {contato}."
-                if observacao_extra:
-                    observacao += f" Observação: {observacao_extra}"
-
-                PagamentoOrdemServico.objects.create(
-                    ordem_servico=ordem,
-                    valor=dados['valor'],
-                    forma_pagamento=PagamentoOrdemServico.FormaPagamento.PIX if pix_key else PagamentoOrdemServico.FormaPagamento.OUTROS,
-                    status=PagamentoOrdemServico.Status.PENDENTE,
-                    observacao=observacao
-                )
-                mensagem_pagamento = 'Recebemos a confirmação do pagamento. A recepção validará e entrará em contato.'
-                pagamento_form = PublicoPagamentoForm(initial={'valor': ordem.valor_minimo_sinal})
+            if decision == "approve":
+                order.status = ServiceOrder.Status.APPROVED
+                success_message = "Obrigado! O orçamento foi aprovado com sucesso."
             else:
-                erro_pagamento = 'Não foi possível registrar o pagamento. Verifique os valores informados.'
-        elif ordem.status in [OrdemServico.Status.ORCAMENTO_ENVIADO, OrdemServico.Status.ORCAMENTO]:
-            ordem.registrar_aprovacao()
-            aprovado = True
-            mensagem = 'Orçamento aprovado com sucesso! Nossa equipe dará sequência.'
+                order.status = ServiceOrder.Status.CANCELED
+                success_message = "Orçamento marcado como não aprovado. A oficina será notificada."
 
-    contexto = {
-        'ordem': ordem,
-        'itens': ordem.itens.all(),
-        'aprovado': aprovado,
-        'mensagem': mensagem,
-        'mensagem_pagamento': mensagem_pagamento,
-        'erro_pagamento': erro_pagamento,
-        'valor_minimo_sinal': ordem.valor_minimo_sinal,
-        'pix_key': pix_key,
-        'pix_instrucoes': pix_instrucoes,
-        'pagamento_form': pagamento_form,
-    }
-    return render(request, 'core/public_orcamento.html', contexto)
+            order.save()
+            order.status_history.create(
+                from_status=previous_status,
+                to_status=order.status,
+                changed_by=None,
+                notes="Status atualizado via link público.",
+            )
+            is_waiting = False
+            success = True
+        else:
+            success_message = "Corrija os dados destacados antes de enviar sua resposta."
+    else:
+        initial_total = order.approval_total or order.total_items
+        form = PublicApprovalForm(initial={"approval_total": initial_total}) if is_waiting else None
 
+    if not token_valid and not success_message:
+        success_message = "Este link não está mais disponível. Solicite um novo link à oficina."
 
-@login_required
-def relatorios(request):
-    form = RelatorioForm()
-    dados_relatorio = None
-    
-    if request.method == 'POST':
-        form = RelatorioForm(request.POST)
-        if form.is_valid():
-            dados_relatorio = gerar_relatorio(form.cleaned_data)
-    
+    vehicle_photos = order.attachments.filter(
+        category=ServiceAttachment.Category.VEHICLE_PHOTO
+    )
+
     context = {
-        'form': form,
-        'dados': dados_relatorio,
+        "order": order,
+        "form": form if is_waiting else None,
+        "is_waiting": is_waiting,
+        "success": success,
+        "message": success_message,
+        "decision": decision,
+        "token_valid": token_valid,
+        "vehicle_photos": vehicle_photos,
     }
-    return render(request, 'core/relatorios.html', context)
-
-
-def gerar_relatorio(dados_form):
-    """Gera dados para relatórios"""
-    tipo = dados_form['tipo_relatorio']
-    periodo = dados_form['periodo']
-    
-    # Calcular datas
-    hoje = timezone.now().date()
-    
-    if periodo == 'hoje':
-        data_inicio = data_fim = hoje
-    elif periodo == 'semana':
-        data_inicio = hoje - timedelta(days=hoje.weekday())
-        data_fim = data_inicio + timedelta(days=6)
-    elif periodo == 'mes':
-        data_inicio = hoje.replace(day=1)
-        data_fim = (data_inicio + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    elif periodo == 'personalizado':
-        data_inicio = dados_form['data_inicio']
-        data_fim = dados_form['data_fim']
-    
-    if tipo == 'faturamento':
-        ordens = OrdemServico.objects.filter(
-            data_abertura__date__range=[data_inicio, data_fim],
-            status=OrdemServico.Status.ENTREGUE
-        )
-        
-        total_faturamento = ordens.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        total_ordens = ordens.count()
-        ticket_medio = total_faturamento / total_ordens if total_ordens > 0 else Decimal('0.00')
-        
-        return {
-            'tipo': 'Faturamento',
-            'periodo_texto': f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}",
-            'total_faturamento': total_faturamento,
-            'total_ordens': total_ordens,
-            'ticket_medio': ticket_medio,
-            'ordens': ordens.select_related('veiculo__cliente')[:50],
-        }
-    
-    return None
-
-
-# API para AJAX
-@login_required
-def api_veiculos_cliente(request):
-    """Retorna veículos de um cliente via AJAX"""
-    cliente_id = request.GET.get('cliente_id')
-    veiculos = Veiculo.objects.filter(
-        cliente_id=cliente_id, ativo=True
-    ).values('id', 'placa', 'marca', 'modelo')
-    
-    return JsonResponse(list(veiculos), safe=False)
-
-@login_required
-@permission_required('is_superuser', raise_exception=True)
-def backup_database(request):
-    """
-    View para criar um backup do banco de dados.
-    """
-    if request.method == 'POST':
-        try:
-            backup_path = create_db_backup()
-            messages.success(request, f'Backup do banco de dados criado com sucesso em: {backup_path}')
-        except CommandError as e:
-            messages.error(request, f'Erro ao criar o backup: {e}')
-    
-    return redirect('core:dashboard')
+    return render(request, "core/order_public.html", context)

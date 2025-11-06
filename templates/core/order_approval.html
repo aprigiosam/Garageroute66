@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Aprovação OS {{ order.number }} · {{ GARAGE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Aprovação da OS {{ order.number }}</h1>
+        <p class="text-muted mb-0">{{ order.vehicle.brand }} {{ order.vehicle.model }} · {{ order.vehicle.plate|default:'Sem placa' }}</p>
+    </div>
+    <div class="mt-3 mt-md-0 text-md-end">
+        <div class="mb-2">
+            <span class="badge bg-info-subtle text-info-emphasis me-2">{{ order.get_status_display }}</span>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ order.get_priority_display }}</span>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:order_detail' order.pk %}"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="alert {% if public_url %}alert-info{% else %}alert-warning{% endif %} d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div class="w-100">
+            <label class="form-label small mb-1">Link público para envio ao cliente</label>
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control" value="{{ public_url|default:'Nenhum link ativo' }}" readonly>
+                {% if public_url %}
+                    <a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank" rel="noopener">Abrir</a>
+                {% endif %}
+            </div>
+            {% if whatsapp_url %}
+                <a class="btn btn-link btn-sm px-0 mt-2" href="{{ whatsapp_url }}" target="_blank" rel="noopener">
+                    <i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp
+                </a>
+            {% endif %}
+            {% if order.public_token_expires_at %}
+                <p class="text-muted small mb-0">Expira em {{ order.public_token_expires_at|date:"d/m/Y H:i" }}.</p>
+            {% endif %}
+            {% if order.public_token_revoked %}
+                <p class="text-danger small mb-0">Link atual revogado.</p>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2 mt-2 mt-md-0">
+            <button class="btn btn-sm btn-outline-danger" type="submit" name="action" value="revoke_link">
+                <i class="bi bi-slash-circle me-1"></i>Revogar link
+            </button>
+            <button class="btn btn-sm btn-outline-primary" type="submit" name="action" value="regenerate_link">
+                <i class="bi bi-arrow-repeat me-1"></i>Gerar novo link
+            </button>
+        </div>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <strong>Dados de aprovação</strong>
+                </div>
+                <div class="card-body">
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-primary text-white">
+                    <strong>Resumo da OS</strong>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Cliente:</strong> {{ order.customer.name }}</p>
+                    <p class="mb-2"><strong>Contato:</strong> {{ order.customer.phone|default:'-' }} · {{ order.customer.email|default:'-' }}</p>
+                    <p class="mb-2"><strong>Diagnóstico:</strong><br>{{ order.diagnosis_description|default:'Ainda não informado.' }}</p>
+                    <p class="mb-2"><strong>Total calculado</strong>: R$ {{ order.total_items|floatformat:2 }}</p>
+                    {% if order.approval_total %}
+                        <p class="mb-0"><strong>Valor aprovado atual</strong>: R$ {{ order.approval_total|floatformat:2 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-transparent border-bottom-0 d-flex justify-content-between align-items-center">
+            <strong>Itens do orçamento</strong>
+            <span class="text-muted small">Utilize o total acima como referência para a aprovação.</span>
+        </div>
+        <div class="card-body">
+            {% if order.items.all %}
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th class="text-end">Qtd</th>
+                                <th class="text-end">Unitário</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                                <tr>
+                                    <td>{{ item.description }}</td>
+                                    <td>{{ item.get_category_display }}</td>
+                                    <td class="text-end">{{ item.quantity }}</td>
+                                    <td class="text-end">R$ {{ item.unit_price }}</td>
+                                    <td class="text-end">R$ {{ item.total|floatformat:2 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="4" class="text-end">Total</th>
+                                <th class="text-end">R$ {{ order.total_items|floatformat:2 }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">Nenhum item cadastrado. Volte para o diagnóstico para incluir itens.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mt-4">
+        <div class="text-muted small">
+            <strong>Próximas ações:</strong> Aprove, rejeite ou retorne ao diagnóstico para ajustes.
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" type="submit" name="action" value="reopen">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reabrir diagnóstico
+            </button>
+            <button class="btn btn-outline-danger" type="submit" name="action" value="reject">
+                <i class="bi bi-x-circle me-1"></i>Cancelar OS
+            </button>
+            <button class="btn btn-primary" type="submit" name="action" value="approve">
+                <i class="bi bi-check-circle me-1"></i>Confirmar aprovação
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}

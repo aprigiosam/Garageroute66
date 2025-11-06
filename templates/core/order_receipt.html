@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Recibo OS {{ order.number }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+                <h1 class="h4 mb-1">Recibo de Serviços</h1>
+                <p class="text-muted mb-0">Ordem de serviço {{ order.number }}</p>
+                <p class="text-muted mb-0">Emitido em {{ now|date:"d/m/Y H:i" }}</p>
+            </div>
+            <button class="btn btn-outline-secondary" type="button" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i>Imprimir
+            </button>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <h2 class="h6 text-uppercase text-muted">Cliente</h2>
+                <p class="mb-1"><strong>{{ order.customer.name }}</strong></p>
+                <p class="mb-1">Telefone: {{ order.customer.phone|default:'-' }}</p>
+                <p class="mb-0">E-mail: {{ order.customer.email|default:'-' }}</p>
+            </div>
+            <div class="col-md-6">
+                <h2 class="h6 text-uppercase text-muted">Veículo</h2>
+                <p class="mb-1"><strong>{{ order.vehicle.brand }} {{ order.vehicle.model }}</strong></p>
+                <p class="mb-1">Placa: {{ order.vehicle.plate|default:'-' }}</p>
+                <p class="mb-0">Chassi: {{ order.vehicle.vin|default:'-' }}</p>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h2 class="h6 text-uppercase text-muted">Serviços executados</h2>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Descrição</th>
+                            <th class="text-end">Qtd</th>
+                            <th class="text-end">Valor unit.</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order.items.all %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td class="text-end">{{ item.quantity }}</td>
+                                <td class="text-end">R$ {{ item.unit_price }}</td>
+                                <td class="text-end">R$ {{ item.total|floatformat:2 }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <h2 class="h6 text-uppercase text-muted">Pagamentos</h2>
+                {% if payments %}
+                    <ul class="list-group list-group-flush">
+                        {% for payment in payments %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>R$ {{ payment.amount }} · {{ payment.get_method_display }}</span>
+                                <span class="text-muted small">{{ payment.paid_at|date:"d/m/Y H:i" }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum pagamento confirmado.</p>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <h2 class="h6 text-uppercase text-muted">Totais</h2>
+                <p class="mb-1 d-flex justify-content-between"><span>Serviços:</span><strong>R$ {{ total_itens|floatformat:2 }}</strong></p>
+                <p class="mb-1 d-flex justify-content-between"><span>Pagamentos:</span><strong>R$ {{ total_pago|floatformat:2 }}</strong></p>
+                <p class="d-flex justify-content-between"><span>Saldo:</span><strong>R$ {{ order.balance|floatformat:2 }}</strong></p>
+            </div>
+        </div>
+
+        <div class="border-top pt-3">
+            <p class="mb-2">Veículo liberado em {{ order.delivered_at|date:"d/m/Y H:i" }}.</p>
+            <p class="mb-0 text-muted small">Responsável: {{ order.responsible.get_full_name|default:order.responsible|default:'-' }} · Emitido por {{ usuario.get_full_name|default:usuario.username }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

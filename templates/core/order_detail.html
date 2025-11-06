@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% block title %}OS {{ order.number }} · {{ GARAGE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Ordem {{ order.number }}</h1>
+        <p class="text-muted mb-0">{{ order.vehicle.brand }} {{ order.vehicle.model }} · {{ order.vehicle.plate|default:'Sem placa' }}</p>
+    </div>
+    <div class="mt-3 mt-md-0 text-md-end">
+        <div class="mb-2">
+            <span class="badge bg-info-subtle text-info-emphasis me-2">{{ order.get_status_display }}</span>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ order.get_priority_display }}</span>
+        </div>
+        <div class="d-flex flex-wrap justify-content-md-end gap-2">
+            {% if order.status != order.Status.DELIVERED %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'core:order_edit' order.pk %}">
+                    <i class="bi bi-pencil-square me-1"></i>Diagnóstico / orçamento
+                </a>
+            {% endif %}
+            {% if order.status == order.Status.WAITING_APPROVAL or order.status == order.Status.APPROVED %}
+                <a class="btn btn-sm btn-primary" href="{% url 'core:order_approval' order.pk %}">
+                    <i class="bi bi-check2-square me-1"></i>Aprovação
+                </a>
+            {% endif %}
+            {% if can_manage_execution %}
+                <a class="btn btn-sm btn-success" href="{% url 'core:order_execution' order.pk %}">
+                    <i class="bi bi-gear-wide-connected me-1"></i>Execução
+                </a>
+            {% endif %}
+            {% if can_manage_checkout %}
+                <a class="btn btn-sm btn-warning" href="{% url 'core:order_checkout' order.pk %}">
+                    <i class="bi bi-cash-stack me-1"></i>Pagamento & Entrega
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-transparent border-bottom-0">
+                <strong>Resumo da OS</strong>
+            </div>
+            <div class="card-body">
+                <p><strong>Problema relatado:</strong><br>{{ order.issue_description }}</p>
+                {% if order.internal_notes %}
+                    <p><strong>Notas internas:</strong><br>{{ order.internal_notes }}</p>
+                {% endif %}
+                {% if order.customer_notes %}
+                    <p><strong>Notas para o cliente:</strong><br>{{ order.customer_notes }}</p>
+                {% endif %}
+                <hr>
+                <p class="mb-1"><strong>Cliente:</strong> {{ order.customer.name }}</p>
+                <p class="mb-1"><strong>Contato:</strong> {{ order.customer.phone|default:'-' }} · {{ order.customer.email|default:'-' }}</p>
+                <p class="mb-0"><strong>Responsável:</strong> {{ order.responsible.get_full_name|default:order.responsible|default:'Não definido' }}</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-header bg-transparent border-bottom-0">
+                <strong>Itens da ordem</strong>
+            </div>
+            <div class="card-body">
+                {% if order.items.all %}
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th class="text-end">Qtd</th>
+                                <th class="text-end">Unitário</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                                <tr>
+                                    <td>{{ item.description }}</td>
+                                    <td>{{ item.get_category_display }}</td>
+                                    <td class="text-end">{{ item.quantity }}</td>
+                                    <td class="text-end">R$ {{ item.unit_price }}</td>
+                                    <td class="text-end">R$ {{ item.total }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">Nenhum item registrado.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-header bg-transparent border-bottom-0 d-flex justify-content-between align-items-center">
+                <strong>Anexos</strong>
+                {% if order.status != order.Status.DELIVERED %}
+                    <a class="small" href="{% url 'core:order_edit' order.pk %}">Adicionar anexos</a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if order.attachments.all %}
+                    <div class="row g-3">
+                        {% for attachment in order.attachments.all %}
+                            <div class="col-md-6">
+                                <div class="border rounded p-3 h-100">
+                                    <p class="mb-1"><strong>{{ attachment.get_category_display }}</strong></p>
+                                    {% if attachment.description %}<p class="mb-2 text-muted small">{{ attachment.description }}</p>{% endif %}
+                                    {% if attachment.file.url %}
+                                        {% if attachment.is_image %}
+                                            <a href="{{ attachment.file.url }}" target="_blank" rel="noopener">
+                                                <img src="{{ attachment.file.url }}" alt="{{ attachment.description }}" class="img-fluid rounded">
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ attachment.file.url }}" target="_blank" rel="noopener">
+                                                <i class="bi bi-paperclip me-1"></i>Abrir arquivo
+                                            </a>
+                                        {% endif %}
+                                    {% endif %}
+                                    <p class="small text-muted mt-2 mb-0">
+                                        Enviado em {{ attachment.created_at|date:"d/m/Y H:i" }}
+                                        {% if attachment.uploaded_by %} · por {{ attachment.uploaded_by.get_short_name|default:attachment.uploaded_by.username }}{% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum anexo cadastrado até o momento.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h2 class="h5">Resumo financeiro</h2>
+                <p class="mb-2 d-flex justify-content-between"><span>Total de itens</span><strong>R$ {{ order.total_items|floatformat:2 }}</strong></p>
+                <p class="mb-2 d-flex justify-content-between"><span>Pago</span><strong>R$ {{ order.total_paid|floatformat:2 }}</strong></p>
+                <p class="d-flex justify-content-between"><span>Saldo</span><strong>R$ {{ order.balance|floatformat:2 }}</strong></p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-body">
+                <h2 class="h5">Aprovação</h2>
+                {% if public_url %}
+                    <div class="mb-3">
+                        <label class="form-label small">Link público para aprovação</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" value="{{ public_url }}" readonly>
+                            <a class="btn btn-outline-secondary" href="{{ public_url }}" target="_blank" rel="noopener">Abrir</a>
+                        </div>
+                        {% if whatsapp_url %}
+                            <a class="btn btn-link btn-sm px-0 mt-2" href="{{ whatsapp_url }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>Enviar via WhatsApp</a>
+                        {% endif %}
+                        {% if order.public_token_expires_at %}
+                            <p class="text-muted small mb-0">Expira em {{ order.public_token_expires_at|date:"d/m/Y H:i" }}.</p>
+                        {% endif %}
+                        {% if order.public_token_revoked %}
+                            <p class="text-danger small mb-0">Link revogado. Gere um novo link se desejar reenviar.</p>
+                        {% elif not public_token_valid %}
+                            <p class="text-danger small mb-0">O link atual está expirado ou indisponível.</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {% if order.status == order.Status.WAITING_APPROVAL and not order.approval_confirmed_at %}
+                    <p class="text-muted mb-2">Aguardando confirmação do cliente.</p>
+                {% endif %}
+                {% if order.approval_total %}
+                    <p class="mb-1"><strong>Valor aprovado:</strong> R$ {{ order.approval_total|floatformat:2 }}</p>
+                {% endif %}
+                {% if order.approval_channel %}
+                    <p class="mb-1"><strong>Canal:</strong> {{ order.get_approval_channel_display }}</p>
+                {% endif %}
+                {% if order.approval_confirmed_by %}
+                    <p class="mb-1"><strong>Aprovado por:</strong> {{ order.approval_confirmed_by }}</p>
+                {% endif %}
+                {% if order.approval_confirmed_at %}
+                    <p class="mb-1"><strong>Data:</strong> {{ order.approval_confirmed_at|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+                {% if order.approval_notes %}
+                    <p class="mb-0 text-muted"><strong>Notas:</strong> {{ order.approval_notes }}</p>
+                {% endif %}
+                {% if order.estimated_delivery %}
+                    <p class="mt-2 mb-0"><strong>Entrega prevista:</strong> {{ order.estimated_delivery|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+                {% if order.status == order.Status.DELIVERED %}
+                    <p class="mt-3 mb-0"><a href="{% url 'core:order_receipt' order.pk %}" class="link-primary">Abrir recibo detalhado</a></p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-header bg-transparent border-bottom-0">
+                <strong>Pagamentos</strong>
+            </div>
+            <div class="card-body">
+                {% if order.payments.all %}
+                    <ul class="list-group list-group-flush">
+                        {% for payment in order.payments.all %}
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>
+                                    R$ {{ payment.amount }}<br>
+                                    <small class="text-muted">{{ payment.get_method_display }}</small>
+                                </span>
+                                <span class="badge bg-light text-dark">{{ payment.get_status_display }}</span>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center text-muted">Nenhum pagamento registrado.</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

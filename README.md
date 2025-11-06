@@ -1,192 +1,49 @@
-# GarageRoute66 🔧
+# Garage Route 66 - Gestão de Ordens de Serviço
 
-Sistema web completo para gestão de oficinas mecânicas, otimizado para uso mobile.
+Sistema web pensado para donos de oficina que também atuam na operação, permitindo abrir e acompanhar ordens de serviço de forma rápida.
 
-[![Deploy](https://img.shields.io/badge/deploy-render-46E3B7)](https://render.com)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![Django](https://img.shields.io/badge/django-5.2-green)](https://www.djangoproject.com/)
-[![License](https://img.shields.io/badge/license-MIT-orange)](LICENSE)
+## Recursos atuais
 
-## 🎯 Funcionalidades
+- Cadastro ágil de cliente e veículo diretamente da tela de nova OS.
+- Geração automática de número da OS com base na data.
+- Painel com indicadores essenciais (abertas, aguardando aprovação, em execução, finalizadas).
+- Lista de ordens com filtros por status, prioridade e busca por cliente/placa.
+- Detalhe da OS com resumo financeiro (itens, pagamentos e saldo) e histórico de status.
+- Upload de fotos do veículo e anexos (ex.: cupons fiscais) diretamente durante o diagnóstico.
+- Fluxo de aprovação com registro de canal, responsável e previsão de entrega após aceite.
+- Link público de aprovação (com expiração e revogação) e envio automático por e-mail/WhatsApp.
+- Gestão da execução (status, notas e fotos) e etapa final de pagamento/entrega com controle financeiro.
+- Emissão de recibo detalhado da OS após liberação do veículo (com suporte à impressão).
 
-- **Gestão de Clientes** - Cadastro completo com CPF, telefone e histórico
-- **Controle de Veículos** - Placa, marca, modelo, chassi e quilometragem
-- **Ordens de Serviço** - Fluxo completo de abertura até entrega
-- **Estoque de Peças** - Controle com categorias, fornecedores e movimentações
-- **Agendamentos** - Organize os serviços programados
-- **Dashboard** - Visão geral com métricas e gráficos
-- **PWA** - Instalável como app no celular
+## Como executar localmente
 
-## 🚀 Deploy Rápido
+1. Crie um virtualenv e instale as dependências:
 
-### Render.com (Gratuito)
-
-1. **Fork** este repositório
-2. Acesse [Render.com](https://render.com) e conecte seu GitHub
-3. **New Web Service** → Selecione seu fork
-4. Configure:
-   - Build: `chmod +x build.sh && ./build.sh`
-   - Start: `gunicorn oficina.wsgi:application`
-   - Instance: **Free**
-5. Adicione variáveis de ambiente:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
    ```
-   PYTHON_VERSION=3.12.0
-   DEBUG=False
-   SECRET_KEY=<gere-uma-chave-secreta>
-   ALLOWED_HOSTS=*.onrender.com
-   COMPANY_NAME=Sua Oficina
+
+2. Aplique as migrações e crie um superusuário:
+
+   ```bash
+   python manage.py migrate
+   python manage.py createsuperuser
    ```
-6. Deploy! ⏱️ ~10 minutos
 
-**Gerar SECRET_KEY:**
-```bash
-python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-```
+3. Execute o servidor de desenvolvimento:
 
-**Criar admin (no Shell do Render):**
-```bash
-python manage.py createsuperuser
-```
+   ```bash
+   python manage.py runserver
+   ```
 
-## 💻 Desenvolvimento Local
+4. Acesse `http://localhost:8000` e faça login com o usuário criado.
+   Para visualizar anexos em desenvolvimento, os arquivos são servidos via `MEDIA_URL` (`/media/`).
 
-### Requisitos
-- Python 3.10+
-- Git
+## Próximos passos sugeridos
 
-### Instalação
-
-```bash
-# Clonar
-git clone https://github.com/aprigiosam/Garageroute66.git
-cd Garageroute66
-
-# Ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
-
-# Dependências
-pip install -r requirements.txt
-
-# Configurar .env
-cat > .env << EOF
-DEBUG=True
-SECRET_KEY=$(python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')
-ALLOWED_HOSTS=localhost,127.0.0.1
-COMPANY_NAME=Minha Oficina
-EOF
-
-# Banco de dados
-python manage.py migrate
-
-# Admin
-python manage.py createsuperuser
-
-# Rodar
-python manage.py runserver
-```
-
-Acesse: http://127.0.0.1:8000
-
-## 📦 Stack Tecnológica
-
-- **Backend:** Django 5.2
-- **Database:** SQLite (migre para PostgreSQL em produção)
-- **Frontend:** Bootstrap 5 + Bootstrap Icons
-- **Charts:** Chart.js
-- **PWA:** Service Worker + Manifest
-- **Server:** Gunicorn + Whitenoise
-
-## 📱 PWA - Instalação no Celular
-
-**Android (Chrome):**
-Menu → "Adicionar à tela inicial"
-
-**iOS (Safari):**
-Compartilhar → "Adicionar à Tela Inicial"
-
-## 🏗️ Estrutura do Projeto
-
-```
-garageroute/
-├── core/              # App principal
-│   ├── models.py      # Cliente, Veiculo, OS, Peca
-│   ├── views.py       # Views principais
-│   ├── forms.py       # Formulários
-│   └── admin.py       # Admin personalizado
-├── oficina/           # Settings Django
-├── templates/         # Templates HTML
-├── static/            # CSS, JS, ícones
-├── requirements.txt   # Dependências
-├── build.sh           # Script de build
-└── manage.py          # CLI Django
-```
-
-## 🛠️ Comandos Úteis
-
-```bash
-# Migrações
-python manage.py makemigrations
-python manage.py migrate
-
-# Admin
-python manage.py createsuperuser
-
-# Testes
-python manage.py test
-
-# Collectstatic (produção)
-python manage.py collectstatic
-```
-
-## 🔧 Configuração
-
-### Variáveis de Ambiente
-
-```env
-DEBUG=False
-SECRET_KEY=sua-chave-secreta
-ALLOWED_HOSTS=seudominio.com,*.onrender.com
-COMPANY_NAME=Nome da Oficina
-OS_PREFIX=OS
-```
-
-## 📊 Roadmap
-
-- [x] Sistema de OS completo
-- [x] Controle de estoque
-- [x] PWA mobile-first
-- [x] Dashboard com gráficos
-- [ ] Relatórios em PDF
-- [ ] API REST
-- [ ] Notificações por email/SMS
-- [ ] Backup automático
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas!
-
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 👨‍💻 Autor
-
-Samuel Aprigio - [@aprigiosam](https://github.com/aprigiosam)
-
-## 🙏 Agradecimentos
-
-- Django Framework
-- Bootstrap
-- Comunidade open source
-
----
-
-**GarageRoute66** - Gestão de oficinas simplificada e eficiente 🚗💨
+- Tela de edição da OS com atualização de status e itens.
+- Registro de pagamentos direto na interface pública.
+- Notificações (e-mail/WhatsApp) para clientes sobre andamento e aprovação.
+- Exportação de relatórios e integração com aplicativos de contabilidade.
