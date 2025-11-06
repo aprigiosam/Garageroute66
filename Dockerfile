@@ -19,4 +19,6 @@ COPY . .
 
 RUN python manage.py collectstatic --noinput
 
-CMD ["gunicorn", "oficina.wsgi:application", "--bind", "0.0.0.0:8000"]
+RUN chmod +x entrypoint.sh
+
+CMD ["./entrypoint.sh"]
